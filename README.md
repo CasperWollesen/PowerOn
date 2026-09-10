@@ -43,6 +43,12 @@ dev/                  API feasibility test page and icon generator
   appears around 13:00, before that the API returns 404).
 - Weather: Open-Meteo (reserved for a future price forecast model; not used yet).
 
+The source delivers the raw Nord Pool spot price (the hourly average of the
+15-minute prices). Under Settings the user can add 25 % VAT (default on) and a
+fixed amount per kWh for grid tariffs and electricity tax, so the shown price
+matches what they actually pay. Cheap/expensive levels are relative and
+therefore unaffected by this transform.
+
 Energinet's Energi Data Service was tested first, but it only allows browser
 requests from its own domains (no `Access-Control-Allow-Origin` for other
 origins), so it cannot be used directly from GitHub Pages.

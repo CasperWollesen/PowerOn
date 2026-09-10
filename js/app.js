@@ -2,7 +2,7 @@
 
 import { getDayPrices, NotPublishedError, pruneOldPrices } from './api.js';
 import { loadSettings, saveSettings, applyTheme, watchSystemTheme, dayWindow } from './settings.js';
-import { loadAppliances, saveAppliances, addAppliance, updateAppliance, removeAppliance } from './appliances.js';
+import { loadAppliances, saveAppliances, addAppliance, updateAppliance, removeAppliance, addDefaults } from './appliances.js';
 import { requestPersistentStorage } from './storage.js';
 import { nowInDenmark, addDays } from './time.js';
 import { renderDashboard } from './dashboard.js';
@@ -34,6 +34,7 @@ function render() {
       onSettingsChange: handleSettingsChange,
       onApplianceSave: handleApplianceSave,
       onApplianceRemove: handleApplianceRemove,
+      onAddDefaults: handleAddDefaults,
       onBack: () => navigate('dashboard'),
     });
   } else {
@@ -82,6 +83,12 @@ function handleSettingsChange(patch) {
 
 function handleApplianceSave(data, id) {
   state.appliances = id ? updateAppliance(state.appliances, id, data) : addAppliance(state.appliances, data);
+  saveAppliances(state.appliances);
+  render();
+}
+
+function handleAddDefaults(names) {
+  state.appliances = addDefaults(state.appliances, names);
   saveAppliances(state.appliances);
   render();
 }

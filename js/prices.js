@@ -3,6 +3,22 @@
 
 export const LEVELS = ['cheap', 'normal', 'expensive'];
 
+export const VAT_RATE = 0.25;
+
+/**
+ * Turn raw spot prices into the price the user actually pays per kWh:
+ * (spot + tariffs/taxes) × VAT. The raw spot price is kept as `spot`.
+ * Since the transform is linear, cheap/expensive levels are unaffected.
+ */
+export function applyPriceModel(hours, { includeVat = true, extraPerKwh = 0 } = {}) {
+  const factor = includeVat ? 1 + VAT_RATE : 1;
+  const extra = Number.isFinite(extraPerKwh) ? extraPerKwh : 0;
+  return hours.map((h) => {
+    const spot = h.spot ?? h.price;
+    return { ...h, spot, price: (spot + extra) * factor };
+  });
+}
+
 // Below this spread (max − min in kr./kWh) a day is considered flat and every
 // hour is "normal". Avoids colouring trivial differences as cheap/expensive.
 const MIN_SPREAD = 0.4;
@@ -59,6 +75,21 @@ export function cheapestWindow(hours, length) {
     }
   }
   return best;
+}
+
+/** Most expensive run of `length` consecutive hours. */
+export function mostExpensiveWindow(hours, length) {
+  if (hours.length < length) return null;
+  let worst = null;
+  for (let i = 0; i + length <= hours.length; i++) {
+    const slice = hours.slice(i, i + length);
+    if (slice[length - 1].hour - slice[0].hour !== length - 1) continue;
+    const avg = slice.reduce((s, h) => s + h.price, 0) / length;
+    if (!worst || avg > worst.avg) {
+      worst = { start: slice[0].hour, end: slice[0].hour + length, avg, hours: slice };
+    }
+  }
+  return worst;
 }
 
 /**

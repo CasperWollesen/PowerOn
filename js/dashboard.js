@@ -1,12 +1,23 @@
 // Dashboard view: "when should I use power?" at a glance.
 
-import { classify, cheapestWindow, periods, periodAt, levelSummary, actionableHours, stats } from './prices.js';
+import { classify, cheapestWindow, mostExpensiveWindow, periods, periodAt, levelSummary, actionableHours, stats, applyPriceModel } from './prices.js';
 import { costPerHour, cycleOptions, unitLabel } from './appliances.js';
 import { renderChart } from './chart.js';
 import { esc, num, numShort, kr, hours as fmtHours } from './format.js';
 import { formatHour, formatHourRange, shortDate, weekdayName } from './time.js';
+import { load, save } from './storage.js';
 
 const LEVEL_LABEL = { cheap: 'Cheap', normal: 'Normal', expensive: 'Expensive' };
+const APPLIANCES_OPEN_KEY = 'ui.appliancesOpen';
+
+/** Apply the user's price model (VAT, tariffs) to every loaded day. */
+function priceDays(days, settings) {
+  const out = {};
+  for (const [key, day] of Object.entries(days)) {
+    out[key] = day.status === 'ok' ? { ...day, hours: applyPriceModel(day.hours, settings) } : day;
+  }
+  return out;
+}
 
 /**
  * @param {HTMLElement} container
@@ -21,7 +32,8 @@ const LEVEL_LABEL = { cheap: 'Cheap', normal: 'Normal', expensive: 'Expensive' }
  * @param {function} model.onOpenSettings
  * @param {function} model.onRefresh
  */
-export function renderDashboard(container, model) {
+export function renderDashboard(container, rawModel) {
+  const model = { ...rawModel, days: priceDays(rawModel.days, rawModel.settings) };
   const { selectedDay, days, now, window: win } = model;
   const day = days[selectedDay];
   const isToday = selectedDay === 'today';
@@ -51,17 +63,25 @@ export function renderDashboard(container, model) {
     ${body}
     <footer class="foot muted">
       ${day.status === 'ok' ? dataNote(day) : ''}
-      <span class="window-note">Day window ${formatHourRange(win.start, win.end)} · ${esc(model.settings.priceArea)}</span>
+      <span class="window-note">Day window ${formatHourRange(win.start, win.end)} · ${esc(model.settings.priceArea)} · ${esc(priceModelNote(model.settings))}</span>
     </footer>
   `;
 
   container.querySelector('[data-action="settings"]').addEventListener('click', model.onOpenSettings);
   container.querySelectorAll('[data-day]').forEach((b) => b.addEventListener('click', () => model.onSelectDay(b.dataset.day)));
   container.querySelector('[data-action="refresh"]')?.addEventListener('click', model.onRefresh);
+  container.querySelector('#appliances-details')?.addEventListener('toggle', (e) => save(APPLIANCES_OPEN_KEY, e.target.open));
 
   if (day.status === 'ok') {
     mountChart(container, model, day, nowHour);
   }
+}
+
+function priceModelNote(settings) {
+  const parts = [settings.includeVat ? 'incl. VAT' : 'excl. VAT'];
+  if (settings.extraPerKwh > 0) parts.push(`+${num(settings.extraPerKwh)} kr./kWh tariffs`);
+  else parts.push('spot price only');
+  return parts.join(', ');
 }
 
 function dayTab(id, label, state, selected) {
@@ -170,8 +190,20 @@ function renderOverview(actionable, windowPeriods, windowHours, nowHour, isToday
     })
     .join('');
 
+  // How much cheaper the best window is than the most expensive window of the same length.
+  let factorHtml = '';
+  let factorNote = '';
+  if (best3) {
+    const worst3 = mostExpensiveWindow(actionable, best3.end - best3.start);
+    if (worst3 && best3.avg > 0.05 && worst3.avg / best3.avg >= 1.05) {
+      const factor = worst3.avg / best3.avg;
+      factorHtml = ` <span class="factor" title="Compared with the most expensive ${best3.end - best3.start} h">(factor ${num(factor, 1)})</span>`;
+      factorNote = ` · ${num(factor, 1)}× cheaper than ${formatHourRange(worst3.start, worst3.end)} (~${num(worst3.avg)})`;
+    }
+  }
+
   const headline = best3
-    ? `Best time ${isToday ? 'today' : 'tomorrow'}: <strong>${formatHourRange(best3.start, best3.end)}</strong>`
+    ? `Best time ${isToday ? 'today' : 'tomorrow'}: <strong>${formatHourRange(best3.start, best3.end)}</strong>${factorHtml}`
     : 'No hours left';
 
   // When today's remaining hours are poor and tomorrow is clearly better, say so.
@@ -187,7 +219,7 @@ function renderOverview(actionable, windowPeriods, windowHours, nowHour, isToday
   return `
     <section class="card overview">
       <p class="headline">${headline}</p>
-      <p class="muted">${best3 ? `${best3.end - best3.start} h at ~${num(best3.avg)} kr./kWh` : ''}${s ? ` · cheapest hour ${formatHour(s.min.hour)} (${num(s.min.price)}) · most expensive ${formatHour(s.max.hour)} (${num(s.max.price)})` : ''}</p>
+      <p class="muted">${best3 ? `${best3.end - best3.start} h at ~${num(best3.avg)} kr./kWh` : ''}${factorNote}${s ? ` · cheapest hour ${formatHour(s.min.hour)} (${num(s.min.price)}) · most expensive ${formatHour(s.max.hour)} (${num(s.max.price)})` : ''}</p>
       ${tomorrowHint}
       <div class="period-strip" aria-label="Price periods">${strip}</div>
       <div class="windows">${windows}</div>
@@ -196,13 +228,14 @@ function renderOverview(actionable, windowPeriods, windowHours, nowHour, isToday
 
 function renderAppliances(model, classified, actionable, nowHour) {
   const { appliances, days, selectedDay } = model;
+  const open = load(APPLIANCES_OPEN_KEY, true) ? 'open' : '';
   if (!appliances.length) {
     return `
-      <section class="card">
-        <h2>Your appliances</h2>
+      <details class="card expander" id="appliances-details" ${open}>
+        <summary><h2>Your appliances</h2></summary>
         <p class="muted">Add your appliances to see what they cost to run at different times.</p>
         <button type="button" class="btn btn-primary btn-block" data-action="settings-cta">Add appliance</button>
-      </section>`;
+      </details>`;
   }
 
   // Timeline for cycle appliances: selected day followed by the next day (if we have it),
@@ -219,10 +252,10 @@ function renderAppliances(model, classified, actionable, nowHour) {
   const rows = appliances.map((a) => (a.mode === 'cycle' ? cycleRow(a, timeline, candidateIndices, nowHour) : hourRow(a, summary, current))).join('');
 
   return `
-    <section class="card">
-      <h2>Your appliances</h2>
+    <details class="card expander" id="appliances-details" ${open}>
+      <summary><h2>Your appliances</h2><span class="muted">${appliances.length}</span></summary>
       <ul class="cost-list">${rows}</ul>
-    </section>`;
+    </details>`;
 }
 
 function hourRow(a, summary, current) {

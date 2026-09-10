@@ -54,6 +54,19 @@ export function removeAppliance(list, id) {
   return list.filter((a) => a.id !== id);
 }
 
+/** Example appliances that are not in the list yet (matched by name). */
+export function missingDefaults(list) {
+  const names = new Set(list.map((a) => a.name));
+  return DEFAULT_APPLIANCES.filter((d) => !names.has(d.name));
+}
+
+/** Add the given example appliances (by name) that are not already present. */
+export function addDefaults(list, names) {
+  const wanted = new Set(names);
+  const toAdd = missingDefaults(list).filter((d) => wanted.has(d.name));
+  return [...list, ...toAdd.map((d) => sanitize({ ...d, id: newId() }))];
+}
+
 export function newId() {
   return Math.random().toString(36).slice(2, 10);
 }

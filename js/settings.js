@@ -21,6 +21,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   dayStart: '06:00',     // start of the hours the user cares about
   dayEnd: '22:00',       // end (exclusive) of the hours the user cares about
   priceArea: 'DK1',
+  includeVat: true,      // show prices incl. 25 % VAT
+  extraPerKwh: 0,        // tariffs & taxes per kWh excl. VAT, added to the spot price
 });
 
 export function loadSettings() {
@@ -42,6 +44,9 @@ function sanitize(s) {
   out.chartMax = Number.isFinite(max) && max > 0 ? max : DEFAULT_SETTINGS.chartMax;
   if (!isTimeString(out.dayStart)) out.dayStart = DEFAULT_SETTINGS.dayStart;
   if (!isTimeString(out.dayEnd)) out.dayEnd = DEFAULT_SETTINGS.dayEnd;
+  out.includeVat = out.includeVat !== false;
+  const extra = Number(out.extraPerKwh);
+  out.extraPerKwh = Number.isFinite(extra) && extra >= 0 ? extra : 0;
   return out;
 }
 

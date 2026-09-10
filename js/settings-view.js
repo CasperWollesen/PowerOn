@@ -1,7 +1,7 @@
 // Settings view: general settings + appliance management.
 
 import { PRICE_AREAS, THEMES } from './settings.js';
-import { MODES, unitLabel } from './appliances.js';
+import { MODES, unitLabel, missingDefaults } from './appliances.js';
 import { esc, numShort, hours as fmtHours } from './format.js';
 
 /**
@@ -31,6 +31,7 @@ export function renderSettings(container, props) {
         ${appliances.length ? appliances.map(applianceRow).join('') : '<li class="muted empty">No appliances yet.</li>'}
       </ul>
       <button type="button" class="btn btn-primary btn-block" data-action="add">+ Add appliance</button>
+      ${examplesSection(appliances)}
     </section>
 
     <section class="card">
@@ -52,6 +53,15 @@ export function renderSettings(container, props) {
         </label>
       </div>
       <p class="muted">Recommendations only consider hours between these times.</p>
+      <label class="field toggle">
+        <span>Include 25 % VAT</span>
+        <input type="checkbox" name="includeVat" ${settings.includeVat ? 'checked' : ''}>
+      </label>
+      <label class="field">
+        <span>Tariffs &amp; taxes per kWh, excl. VAT (kr.)</span>
+        <input type="number" name="extraPerKwh" value="${esc(settings.extraPerKwh)}" min="0" step="0.01" inputmode="decimal" placeholder="0">
+      </label>
+      <p class="muted">The source only knows the raw spot price. Add your grid tariff and electricity tax here to get the price you actually pay. 0 shows the spot price.</p>
       <label class="field">
         <span>Maximum chart price (kr./kWh)</span>
         <input type="number" name="chartMax" value="${esc(settings.chartMax)}" min="0.5" step="0.5" inputmode="decimal">
@@ -71,7 +81,7 @@ export function renderSettings(container, props) {
 
     <section class="card about">
       <h2>About</h2>
-      <p class="muted">Prices: day-ahead spot prices (excl. taxes, tariffs and VAT) from elprisenligenu.dk. Weather: Open-Meteo.</p>
+      <p class="muted">Prices: Nord Pool day-ahead spot prices from elprisenligenu.dk (hourly average of the 15-minute prices). VAT and tariffs are added according to the settings above. Weather: Open-Meteo.</p>
       <p class="muted">Version <span id="app-version">1.0.0</span></p>
     </section>
 
@@ -111,11 +121,35 @@ export function renderSettings(container, props) {
   wireEvents(container, props);
 }
 
+function examplesSection(appliances) {
+  const missing = missingDefaults(appliances);
+  if (!missing.length) return '';
+  return `
+    <div class="examples">
+      <p class="muted">Examples – add one or all to see what the app can do:</p>
+      <ul class="example-list">
+        ${missing
+          .map(
+            (d) => `
+          <li>
+            <span class="example-info"><strong>${esc(d.name)}</strong><span class="muted">${esc(applianceDetail(d))}</span></span>
+            <button type="button" class="btn btn-small" data-action="add-default" data-name="${esc(d.name)}">Add</button>
+          </li>`,
+          )
+          .join('')}
+      </ul>
+      ${missing.length > 1 ? `<button type="button" class="btn btn-block" data-action="add-all-defaults">Add all ${missing.length} examples</button>` : ''}
+    </div>`;
+}
+
+function applianceDetail(a) {
+  return a.mode === 'cycle'
+    ? `${numShort(a.kwh)} ${unitLabel(a)}${a.durationHours ? ` · ${fmtHours(a.durationHours)}` : ''}`
+    : `${numShort(a.kwh)} ${unitLabel(a)}`;
+}
+
 function applianceRow(a) {
-  const detail =
-    a.mode === 'cycle'
-      ? `${numShort(a.kwh)} ${unitLabel(a)}${a.durationHours ? ` · ${fmtHours(a.durationHours)}` : ''}`
-      : `${numShort(a.kwh)} ${unitLabel(a)}`;
+  const detail = applianceDetail(a);
   return `
     <li class="appliance-row" data-id="${esc(a.id)}">
       <div class="appliance-info">
@@ -130,9 +164,21 @@ function applianceRow(a) {
 }
 
 function wireEvents(container, props) {
-  const { settings, appliances, onSettingsChange, onApplianceSave, onApplianceRemove, onBack } = props;
+  const { settings, appliances, onSettingsChange, onApplianceSave, onApplianceRemove, onAddDefaults, onBack } = props;
 
   container.querySelector('[data-action="back"]').addEventListener('click', onBack);
+
+  // Example appliances
+  container.querySelectorAll('[data-action="add-default"]').forEach((btn) => btn.addEventListener('click', () => onAddDefaults([btn.dataset.name])));
+  container.querySelector('[data-action="add-all-defaults"]')?.addEventListener('click', () => onAddDefaults(missingDefaults(appliances).map((d) => d.name)));
+
+  // Price model
+  container.querySelector('input[name="includeVat"]').addEventListener('change', (e) => onSettingsChange({ includeVat: e.target.checked }));
+  container.querySelector('input[name="extraPerKwh"]').addEventListener('change', (e) => {
+    const v = Number(String(e.target.value).replace(',', '.'));
+    if (Number.isFinite(v) && v >= 0) onSettingsChange({ extraPerKwh: v });
+    else e.target.value = settings.extraPerKwh;
+  });
 
   // General settings
   container.querySelector('select[name="priceArea"]').addEventListener('change', (e) => onSettingsChange({ priceArea: e.target.value }));

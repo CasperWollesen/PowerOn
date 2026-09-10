@@ -4,10 +4,12 @@ const nf2 = new Intl.NumberFormat('da-DK', { minimumFractionDigits: 2, maximumFr
 const nf3 = new Intl.NumberFormat('da-DK', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 const nfShort = new Intl.NumberFormat('da-DK', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
-/** 1.2345 → '1,23' */
+/** 1.2345 → '1,23' (fixed number of decimals, default 2) */
 export function num(value, decimals = 2) {
   if (!Number.isFinite(value)) return '–';
-  return decimals === 3 ? nf3.format(value) : nf2.format(value);
+  if (decimals === 2) return nf2.format(value);
+  if (decimals === 3) return nf3.format(value);
+  return new Intl.NumberFormat('da-DK', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(value);
 }
 
 /** 0.255 → '0,255' (up to 3 decimals, trailing zeros trimmed) */
