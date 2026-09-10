@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PowerOn – API feasibility test</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, -apple-system, sans-serif; }
+    body { margin: 0; padding: 1rem; max-width: 720px; margin-inline: auto; line-height: 1.4; }
+    h1 { font-size: 1.25rem; }
+    .card { border: 1px solid #8884; border-radius: 12px; padding: 1rem; margin-bottom: 1rem; }
+    .status { font-weight: 700; }
+    .ok { color: #1a9c4a; }
+    .failed { color: #d13b3b; }
+    .pending { color: #888; }
+    .error { color: #d13b3b; white-space: pre-wrap; word-break: break-word; font-family: monospace; font-size: 0.85rem; }
+    .endpoint { font-family: monospace; font-size: 0.8rem; word-break: break-all; opacity: 0.8; }
+    pre { background: #8881; padding: 0.75rem; border-radius: 8px; overflow-x: auto; font-size: 0.8rem; margin: 0.5rem 0 0; }
+    p { margin: 0.4rem 0; }
+  </style>
+</head>
+<body>
+  <h1>PowerOn – Phase 1: API feasibility test</h1>
+  <p>Testing whether the browser can call the price and weather APIs directly (CORS). Full details are logged to the console.</p>
+
+  <div class="card" id="electricity">
+    <p>Electricity API (DayAheadPrices, 15-min): <span class="status pending">TESTING…</span></p>
+    <p class="endpoint"></p>
+    <p class="error"></p>
+    <pre class="sample" hidden></pre>
+  </div>
+
+  <div class="card" id="electricity-legacy">
+    <p>Electricity API (legacy Elspotprices, hourly): <span class="status pending">TESTING…</span></p>
+    <p class="endpoint"></p>
+    <p class="error"></p>
+    <pre class="sample" hidden></pre>
+  </div>
+
+  <div class="card" id="weather">
+    <p>Weather API (Open-Meteo): <span class="status pending">TESTING…</span></p>
+    <p class="endpoint"></p>
+    <p class="error"></p>
+    <pre class="sample" hidden></pre>
+  </div>
+
+  <script type="module" src="./api-test.js"></script>
+</body>
+</html>
