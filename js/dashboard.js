@@ -84,15 +84,19 @@ function renderDay(model, day, nowHour) {
   const windowPeriods = periods(windowHours);
   const isToday = nowHour !== null;
 
+  // Order: appliances first (the question the user actually has), then the
+  // best-time overview, the current price, and finally the chart.
   const parts = [];
 
-  if (isToday) parts.push(renderNow(classified, windowPeriods, nowHour));
+  parts.push(renderAppliances(model, classified, actionable, nowHour));
 
   if (!actionable.length) {
     parts.push(`<section class="card state"><p><strong>The day window is over for today.</strong></p><p class="muted">Check tomorrow's prices.</p></section>`);
   } else {
     parts.push(renderOverview(actionable, windowPeriods, windowHours, nowHour, isToday, model.days.tomorrow, win));
   }
+
+  if (isToday) parts.push(renderNow(classified, windowPeriods, nowHour));
 
   parts.push(`
     <section class="card chart-card">
@@ -108,8 +112,6 @@ function renderDay(model, day, nowHour) {
         <span><i class="dot outside"></i>Outside window</span>
       </div>
     </section>`);
-
-  parts.push(renderAppliances(model, classified, actionable, nowHour));
 
   return parts.join('');
 }

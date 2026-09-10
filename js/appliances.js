@@ -15,9 +15,25 @@ export const MODES = [
   { id: 'cycle', label: 'Per cycle', unit: 'kWh/cycle' },
 ];
 
+// Example appliances shown on first launch so the app makes sense before the
+// user adds their own. Only seeded when nothing has ever been stored; deleting
+// them all leaves the list empty.
+export const DEFAULT_APPLIANCES = [
+  { name: 'Eeese Adam 20 dehumidifier', kwh: 0.255, mode: 'hour' },
+  { name: 'LG washing machine 30 °C', kwh: 0.3, mode: 'cycle', durationHours: 1 },
+  { name: 'LG washing machine Eco 40-60', kwh: 0.84, mode: 'cycle', durationHours: 3.5 },
+  { name: 'Bosch dryer', kwh: 0.39, mode: 'hour' },
+  { name: 'Gorenje oven 200 °C', kwh: 0.71, mode: 'hour' },
+];
+
 export function loadAppliances() {
-  const list = load(KEY, []);
-  return Array.isArray(list) ? list.map(sanitize).filter(Boolean) : [];
+  const stored = load(KEY, null);
+  if (stored === null) {
+    const seeded = DEFAULT_APPLIANCES.map((a) => sanitize({ ...a, id: newId() }));
+    save(KEY, seeded);
+    return seeded;
+  }
+  return Array.isArray(stored) ? stored.map(sanitize).filter(Boolean) : [];
 }
 
 export function saveAppliances(list) {
