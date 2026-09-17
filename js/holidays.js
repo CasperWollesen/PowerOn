@@ -51,6 +51,7 @@ export function isHoliday(dateStr) {
 }
 
 /** Saturday, Sunday or a public holiday. */
+// @req OUT-11
 export function isOffDay(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number);
   const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay();

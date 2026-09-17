@@ -13,6 +13,7 @@ import { formatHour } from './time.js';
  * @param {number|null} opts.nowHour  current hour if the chart shows today, else null
  * @param {function} [opts.onSelect]  called with the hour object when a bar is tapped
  */
+// @req DAY-07 SET-06
 export function renderChart(container, { hours, max, nowHour = null, onSelect, showAddOn = false }) {
   const ticks = gridTicks(max);
   const byHour = new Map(hours.map((h) => [h.hour, h]));

@@ -1,0 +1,19 @@
+name: Verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unit tests (headless Chrome)
+        run: python dev/run-tests.py --verbose
+
+      - name: Spec and consistency check
+        run: python dev/spec-check.py --check

@@ -39,6 +39,7 @@ function gridCompanyName() {
   return cachedGridCompanies().find((c) => c.id === id)?.name ?? id;
 }
 
+// @req NFR-08
 function render({ scrollTop = false } = {}) {
   if (state.view === 'settings') {
     renderSettings(root, {
@@ -111,6 +112,7 @@ async function handleInstall() {
 // ---------------------------------------------------------------------------
 // Settings & appliances
 
+// @req SET-05 SET-07
 function handleSettingsChange(patch) {
   const before = state.settings;
   state.settings = saveSettings({ ...before, ...patch });
@@ -154,6 +156,7 @@ function handleApplianceRemove(id) {
 
 let loadingPrices = null;
 
+// @req DATA-01 DAY-01
 function loadPrices({ force = false } = {}) {
   if (loadingPrices) return loadingPrices;
   loadingPrices = (async () => {
@@ -203,6 +206,7 @@ async function loadDay(area, date, force) {
 }
 
 /** Tariffs for today and tomorrow. Failures fall back to cached/national tariffs. */
+// @req PRICE-03
 async function loadTariffs() {
   const { priceArea, gridCompany, priceMode } = state.settings;
   if (priceMode !== 'full') return;
@@ -219,6 +223,7 @@ async function loadTariffs() {
 
 let insightsRunning = false;
 
+// @req DATA-06 DATA-08
 async function loadInsights({ force = false } = {}) {
   if (insightsRunning) return;
   insightsRunning = true;
@@ -276,6 +281,7 @@ function computeForecast() {
 // ---------------------------------------------------------------------------
 // Timers: keep "now" fresh, roll over at midnight, retry tomorrow's prices.
 
+// @req DATA-03 DATA-10
 function tick() {
   const now = nowInDenmark();
   const hourChanged = now.hour !== state.now.hour;
@@ -301,6 +307,7 @@ function tick() {
 // ---------------------------------------------------------------------------
 // PWA
 
+// @req PWA-02
 function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {

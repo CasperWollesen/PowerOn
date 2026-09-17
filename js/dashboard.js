@@ -17,6 +17,7 @@ const GRID_HINT_KEY = 'ui.gridHintDismissed';
  * @param {HTMLElement} container
  * @param {object} model  see app.js → dashboardModel()
  */
+// @req DAY-01 VIEW-01
 export function renderDashboard(container, model) {
   const { settings, selectedTab, days } = model;
 
@@ -89,6 +90,7 @@ function outlookSub(model) {
   return '…';
 }
 
+// @req PRICE-08
 function priceModelNote(model) {
   const { settings } = model;
   if (settings.priceMode === 'spot') return 'spot price excl. VAT';
@@ -96,6 +98,7 @@ function priceModelNote(model) {
   return `incl. tariffs, tax & VAT (${grid})`;
 }
 
+// @req PWA-04
 function installBanner() {
   if (!shouldShowBanner()) return '';
   const s = installState();

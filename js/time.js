@@ -14,6 +14,7 @@ const partsFormatter = new Intl.DateTimeFormat('en-GB', {
 });
 
 /** Current Danish wall-clock time: { date: 'YYYY-MM-DD', hour, minute }. */
+// @req DATA-09
 export function nowInDenmark(now = new Date()) {
   const parts = Object.fromEntries(partsFormatter.formatToParts(now).map((p) => [p.type, p.value]));
   return {

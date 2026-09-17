@@ -19,6 +19,7 @@ export function badge(level, text = LEVEL_LABEL[level]) {
 }
 
 /** "1,8×" – a ratio rendered compactly, or '' when not meaningful. */
+// @req ANA-06
 export function factorText(value) {
   if (value == null || !Number.isFinite(value)) return '';
   return `${num(value, value >= 10 ? 0 : 1)}×`;
@@ -28,6 +29,7 @@ export function factorText(value) {
  * Two small pills: how a price compares with the cheapest and the most
  * expensive hour of the reference set.
  */
+// @req DAY-03
 export function factorPills({ vsCheapest, vsPriciest }, { compact = false } = {}) {
   const pills = [];
   if (vsCheapest != null) {
@@ -69,6 +71,7 @@ export function rangeTiles(r) {
     </div>`;
 }
 
+// @req VIEW-01
 export function segmented(name, options, active, { small = false, label = '' } = {}) {
   return `
     <div class="segmented ${small ? 'small' : ''}" role="radiogroup" ${label ? `aria-label="${esc(label)}"` : ''}>

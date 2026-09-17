@@ -19,6 +19,7 @@ const APPLIANCES_OPEN_KEY = 'ui.appliancesOpen';
 /**
  * @returns {{ html: string, mount: (container: HTMLElement) => void }}
  */
+// @req DAY-02 DAY-09 VIEW-02 VIEW-03
 export function renderDayView(model, tab) {
   const day = model.days[tab];
   const isToday = tab === 'today';
@@ -91,6 +92,7 @@ function wireComingDays(container, model) {
 // ---------------------------------------------------------------------------
 // Appliances
 
+// @req APPL-09
 function renderAppliances(ctx) {
   const { model, classified, actionable, nowHour, tomorrowPriced, mode } = ctx;
   const { appliances } = model;
@@ -135,6 +137,7 @@ function renderAppliances(ctx) {
 }
 
 /** One line per appliance: now, best and worst cost – the cheap/expensive contrast at a glance. */
+// @req APPL-08
 function simpleRow(a, { timeline, candidateIndices, current, actionable }) {
   let now = null;
   let best = null;
@@ -176,6 +179,7 @@ function factorTag(value) {
   return ` <em class="factor-tag">${factorText(value)}</em>`;
 }
 
+// @req APPL-07
 function hourRow(a, summary, current, cheapest) {
   const cheapAvg = summary.find((s) => s.level === 'cheap')?.avg ?? cheapest.price;
   const chips = summary
@@ -227,6 +231,7 @@ function cycleRow(a, timeline, candidateIndices, current) {
 // ---------------------------------------------------------------------------
 // Best time overview
 
+// @req DAY-04 DAY-05 DAY-06 DAY-08
 function renderOverview(ctx) {
   const { model, mode, isToday, nowHour, actionable, windowPeriods, windowHours, tomorrowPriced } = ctx;
   const best3 = cheapestWindow(actionable, 3) ?? cheapestWindow(actionable, Math.min(3, actionable.length));
@@ -300,6 +305,7 @@ function renderOverview(ctx) {
 // ---------------------------------------------------------------------------
 // Now
 
+// @req DAY-03
 function renderNow(ctx) {
   const { classified, windowPeriods, nowHour, actionable, mode } = ctx;
   const current = classified.find((h) => h.hour === nowHour);
@@ -339,6 +345,7 @@ function renderNow(ctx) {
 // ---------------------------------------------------------------------------
 // Chart
 
+// @req DAY-07
 function renderChartCard(ctx) {
   const nerd = ctx.mode === 'nerd';
   return `
@@ -379,6 +386,7 @@ function mountChart(container, ctx) {
 // ---------------------------------------------------------------------------
 // Nerd cards
 
+// @req DAY-10 PRICE-07
 function renderBreakdown(ctx) {
   const { model, classified, nowHour, windowHours, tariffSource } = ctx;
   const current = nowHour !== null ? classified.find((h) => h.hour === nowHour) : null;

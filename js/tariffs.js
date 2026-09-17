@@ -27,6 +27,7 @@ function tariffKey(area, gridId, date) {
 }
 
 /** Grid companies (netselskaber) for all price areas. Cached for a week. */
+// @req PRICE-05
 export async function getGridCompanies({ force = false } = {}) {
   const cached = load(COMPANIES_KEY);
   if (!force && cached && Date.now() - cached.fetchedAt < COMPANIES_MAX_AGE_MS) return cached.list;
@@ -57,6 +58,7 @@ export function cachedGridCompanies() {
  * (stromligning only knows days whose spot prices are published).
  * @returns {Promise<TariffDay|null>} { date, area, grid, hours: [{ hour, system, net, tax, grid }] }
  */
+// @req PRICE-03
 export async function fetchDayTariffs(area, gridId, date, { force = false } = {}) {
   const key = tariffKey(area, gridId, date);
   const cached = load(key);
@@ -110,6 +112,7 @@ function round(v) {
  * closest cached day (same grid company), otherwise national defaults.
  * @returns {{ byHour: Map<number, {system, net, tax, grid}>, source: 'exact'|'nearest'|'default', date?: string }}
  */
+// @req PRICE-04
 export function tariffProfileFor(area, gridId, date) {
   const exact = load(tariffKey(area, gridId, date));
   if (exact?.hours?.length) return { byHour: toMap(exact.hours), source: 'exact', date };
@@ -148,6 +151,7 @@ function dayDiff(a, b) {
 }
 
 /** Remove cached tariff days older than `keepDays`. */
+// @req DATA-07
 export function pruneOldTariffs(todayStr, keepDays = 45) {
   const cutoff = addDays(todayStr, -keepDays);
   for (const key of keysWithPrefix('tariffs.')) {
@@ -160,6 +164,7 @@ export function pruneOldTariffs(todayStr, keepDays = 45) {
  * Apply the user's price model to spot-price hours.
  * Every returned hour has `price` (what the app shows) plus a `parts` breakdown.
  */
+// @req PRICE-01 PRICE-02 PRICE-06 PRICE-07
 export function applyPriceModel(hours, settings, profile) {
   const full = settings.priceMode !== 'spot';
   const surcharge = full ? settings.supplierSurcharge || 0 : 0;
@@ -186,6 +191,7 @@ export function applyPriceModel(hours, settings, profile) {
  * `min1`/`max1` the lowest/highest single hour (cheap spot hours tend to fall in
  * low-tariff hours and price peaks in the 17–21 tariff peak).
  */
+// @req OUT-05
 export function addOnForWindow(settings, profile, window) {
   if (settings.priceMode === 'spot') return { avg: 0, min3: 0, min1: 0, max1: 0, factor: 1 };
   const surcharge = settings.supplierSurcharge || 0;

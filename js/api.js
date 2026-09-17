@@ -19,6 +19,7 @@ export class NotPublishedError extends Error {
   }
 }
 
+// @req DATA-01
 export function priceUrl(area, dateStr) {
   const [year, month, day] = dateStr.split('-');
   return `${PRICE_BASE}/${year}/${month}-${day}_${area}.json`;
@@ -44,6 +45,7 @@ function unpack(stored) {
 }
 
 /** Cached spot day (sync) or null. */
+// @req DATA-04
 export function cachedDay(area, dateStr) {
   return unpack(load(cacheKey(area, dateStr)));
 }
@@ -62,6 +64,7 @@ export function cachedDates(area) {
  * @returns {Promise<{ area, date, hours: [{ hour, price }], fetchedAt, fromCache, stale? }>}
  * @throws {NotPublishedError} when the day is not available yet (HTTP 404)
  */
+// @req DATA-01 DATA-02 DATA-04 DATA-05
 export async function getDayPrices(area, dateStr, { preferCache = true } = {}) {
   const cached = cachedDay(area, dateStr);
 
@@ -100,6 +103,7 @@ function normalizeDay(area, dateStr, raw) {
  * Fetch missing days in [fromDate, toDate] (inclusive) with limited concurrency.
  * Failures are skipped silently; the next run will try again.
  */
+// @req DATA-06
 export async function backfillPrices(area, fromDate, toDate, { concurrency = 4, onProgress } = {}) {
   const missing = [];
   for (let d = toDate; d >= fromDate; d = addDays(d, -1)) {
@@ -124,6 +128,7 @@ export async function backfillPrices(area, fromDate, toDate, { concurrency = 4, 
 }
 
 /** Remove cached days older than `keepDays`, plus the legacy `prices.*` cache format. */
+// @req DATA-07
 export function pruneOldPrices(todayStr, keepDays = HISTORY_KEEP_DAYS) {
   const cutoff = addDays(todayStr, -keepDays);
   for (const key of keysWithPrefix('spot.')) {

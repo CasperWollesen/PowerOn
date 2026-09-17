@@ -200,6 +200,7 @@ export function levelFor(value, reference) {
 }
 
 /** Short human descriptions of what drives a day's price. */
+// @req OUT-09
 export function driverTags(w, offDay) {
   if (!w) return [];
   const tags = [];

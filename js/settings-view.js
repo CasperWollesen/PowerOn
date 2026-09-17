@@ -17,6 +17,7 @@ import { icons, segmented } from './ui.js';
  * @param {function} props.onApplianceRemove  (id) => void
  * @param {function} props.onBack             () => void
  */
+// @req SET-01 SET-04 SET-06 SET-08 APPL-02
 export function renderSettings(container, props) {
   const { settings, appliances } = props;
 
@@ -138,6 +139,7 @@ export function renderSettings(container, props) {
   wireEvents(container, props);
 }
 
+// @req APPL-04
 function examplesSection(appliances) {
   const missing = missingDefaults(appliances);
   if (!missing.length) return '';
@@ -307,6 +309,7 @@ function setActive(container, selector, activeBtn) {
   });
 }
 
+// @req PRICE-05
 function gridOptions(settings) {
   const companies = cachedGridCompanies().filter((c) => c.priceArea === settings.priceArea);
   const selected = settings.gridCompany;

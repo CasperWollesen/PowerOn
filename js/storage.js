@@ -47,6 +47,7 @@ export function keysWithPrefix(subPrefix) {
 }
 
 /** Ask the browser not to evict our data under storage pressure. Best effort. */
+// @req PWA-06
 export async function requestPersistentStorage() {
   try {
     if (navigator.storage?.persist) {

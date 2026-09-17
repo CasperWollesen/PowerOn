@@ -9,6 +9,7 @@ import { formatHour, formatHourRange, shortDate, weekdayName } from './time.js';
 import { LEVEL_LABEL, badge, factorText, stateCard, priceRange } from './ui.js';
 
 /** Convert a forecast day (spot, kr./kWh) to displayed prices for the user's price model. */
+// @req OUT-05
 function displayDay(model, day) {
   const profile = tariffProfileFor(model.settings.priceArea, model.settings.gridCompany, day.date);
   const addOn = addOnForWindow(model.settings, profile, model.window);
@@ -67,6 +68,7 @@ function knownDays(model, forecast) {
 // ---------------------------------------------------------------------------
 // Compact strip for the day view
 
+// @req OUT-08
 export function renderComingDays(model) {
   const { forecast, insights } = model;
   const header = `<div class="card-head"><h2>Coming days</h2><button type="button" class="link-btn" data-action="open-outlook">Outlook ›</button></div>`;
@@ -104,6 +106,7 @@ export function renderComingDays(model) {
 // ---------------------------------------------------------------------------
 // Full outlook tab
 
+// @req OUT-06 OUT-07
 export function renderOutlookView(model) {
   const { forecast, insights, settings } = model;
   const mode = settings.viewMode;
@@ -210,6 +213,7 @@ function predictedRow(d, refDisplay, mode) {
     </li>`;
 }
 
+// @req OUT-10
 function renderModelCard(forecast, predicted) {
   const v = forecast.validation;
   const weights = forecast.weights

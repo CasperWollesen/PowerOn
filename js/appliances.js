@@ -18,6 +18,7 @@ export const MODES = [
 // Example appliances shown on first launch so the app makes sense before the
 // user adds their own. Only seeded when nothing has ever been stored; deleting
 // them all leaves the list empty.
+// @req APPL-03
 export const DEFAULT_APPLIANCES = [
   { name: 'Eeese Adam 20 dehumidifier', kwh: 0.255, mode: 'hour' },
   { name: 'LG washing machine 30 °C', kwh: 0.3, mode: 'cycle', durationHours: 1 },
@@ -26,6 +27,7 @@ export const DEFAULT_APPLIANCES = [
   { name: 'Gorenje oven 200 °C', kwh: 0.71, mode: 'hour' },
 ];
 
+// @req APPL-02 APPL-03
 export function loadAppliances() {
   const stored = load(KEY, null);
   if (stored === null) {
@@ -55,6 +57,7 @@ export function removeAppliance(list, id) {
 }
 
 /** Example appliances that are not in the list yet (matched by name). */
+// @req APPL-04
 export function missingDefaults(list) {
   const names = new Set(list.map((a) => a.name));
   return DEFAULT_APPLIANCES.filter((d) => !names.has(d.name));
@@ -71,6 +74,7 @@ export function newId() {
   return Math.random().toString(36).slice(2, 10);
 }
 
+// @req APPL-01
 function sanitize(a) {
   if (!a || typeof a !== 'object') return null;
   const name = String(a.name ?? '').trim();
@@ -92,6 +96,7 @@ export function unitLabel(appliance) {
 }
 
 /** Cost of running an hourly appliance for one hour at the given price. */
+// @req APPL-05
 export function costPerHour(appliance, price) {
   return appliance.kwh * price;
 }
@@ -101,6 +106,7 @@ export function costPerHour(appliance, price) {
  * that may span more than one day). Returns null when the cycle does not fit
  * inside the available data.
  */
+// @req APPL-06
 export function cycleCost(appliance, timeline, startIndex) {
   const duration = appliance.durationHours || 1;
   const slots = Math.ceil(duration);

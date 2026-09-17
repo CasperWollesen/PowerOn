@@ -33,6 +33,7 @@ const SUN_POINTS = [
 ];
 
 /** Rough wind turbine capacity factor (0–1) from wind speed in m/s. */
+// @req DATA-08
 export function capacityFactor(v) {
   if (v == null || v < 3 || v >= 25) return 0;
   return Math.min(1, (v ** 3 - 27) / (1728 - 27));

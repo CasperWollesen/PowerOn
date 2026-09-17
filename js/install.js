@@ -44,6 +44,7 @@ export function installState() {
 }
 
 /** Whether the dashboard should show the install banner. */
+// @req PWA-04
 export function shouldShowBanner() {
   const s = installState();
   return !s.standalone && !s.dismissed && (s.ios || s.canPrompt);
@@ -63,6 +64,7 @@ export async function promptInstall() {
 }
 
 /** Instructions as HTML for the current platform. */
+// @req PWA-04 SET-08
 export function installInstructions(shareIcon) {
   const s = installState();
   if (s.standalone) return 'PowerOn is installed and running as an app.';

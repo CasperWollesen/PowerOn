@@ -15,6 +15,7 @@ export const THEMES = [
   { id: 'dark', label: 'Dark' },
 ];
 
+// @req SET-03
 export const DEFAULT_SETTINGS = Object.freeze({
   theme: 'system',
   chartMax: 10,          // kr./kWh – fixed Y-axis maximum
@@ -38,6 +39,7 @@ export const PRICE_MODES = [
   { id: 'spot', label: 'Spot only' },
 ];
 
+// @req SET-02
 export function loadSettings() {
   const stored = migrate(load(KEY, {}) ?? {});
   return sanitize({ ...DEFAULT_SETTINGS, ...stored });
@@ -77,7 +79,9 @@ function sanitize(s) {
 }
 
 function isTimeString(v) {
-  return typeof v === 'string' && /^\d{2}:\d{2}$/.test(v);
+  if (typeof v !== 'string' || !/^\d{2}:\d{2}$/.test(v)) return false;
+  const [hours, minutes] = v.split(':').map(Number);
+  return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
 }
 
 /**
@@ -85,6 +89,7 @@ function isTimeString(v) {
  * "06:00"–"22:00" → { start: 6, end: 22 } meaning hours 6..21 inclusive.
  * "00:00"–"00:00" is treated as the whole day.
  */
+// @req ANA-01
 export function dayWindow(settings) {
   const [sh] = settings.dayStart.split(':').map(Number);
   const [eh, em] = settings.dayEnd.split(':').map(Number);
@@ -96,6 +101,7 @@ export function dayWindow(settings) {
 }
 
 /** Apply the theme to the document root. */
+// @req SET-04
 export function applyTheme(theme) {
   const root = document.documentElement;
   if (theme === 'light' || theme === 'dark') {

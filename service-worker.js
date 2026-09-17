@@ -3,8 +3,9 @@
 // fetched prices in localStorage itself.
 //
 // Bump CACHE_VERSION whenever app files change, so clients pick up the update.
+// @req PWA-02 PWA-03
 
-const CACHE_VERSION = 'poweron-v4';
+const CACHE_VERSION = 'poweron-v5';
 
 const APP_SHELL = [
   './',

@@ -12,6 +12,7 @@ const MIN_SPREAD = 0.4;
  * Thresholds are thirds of the spread between the cheapest and most expensive
  * hour inside the window, so "cheap" always means "cheap for this day".
  */
+// @req ANA-02
 export function classify(hours, window) {
   const inWindow = hours.filter((h) => h.hour >= window.start && h.hour < window.end);
   const basis = inWindow.length ? inWindow : hours;
@@ -30,6 +31,7 @@ export function classify(hours, window) {
   });
 }
 
+// @req ANA-07
 export function stats(hours) {
   if (!hours.length) return null;
   let min = hours[0];
@@ -47,6 +49,7 @@ export function stats(hours) {
  * Cheapest run of `length` consecutive hours (consecutive by hour number).
  * @returns {{ start, end, avg, hours } | null}
  */
+// @req ANA-04
 export function cheapestWindow(hours, length) {
   if (hours.length < length) return null;
   let best = null;
@@ -80,6 +83,7 @@ export function mostExpensiveWindow(hours, length) {
  * Merge consecutive hours with the same level into periods.
  * @returns {Array<{ level, start, end, avg, min, max, hours }>}
  */
+// @req ANA-05
 export function periods(hours) {
   const out = [];
   for (const h of hours) {
@@ -120,6 +124,7 @@ export function periodAt(periodList, hour) {
  * Hours the user can still act on: inside the day window and, for today,
  * not in the past.
  */
+// @req ANA-03
 export function actionableHours(classifiedHours, { nowHour = null } = {}) {
   return classifiedHours.filter((h) => h.inWindow && (nowHour === null || h.hour >= nowHour));
 }
@@ -129,6 +134,7 @@ export function actionableHours(classifiedHours, { nowHour = null } = {}) {
  * Returns null factors when the reference is too close to zero (or negative)
  * for a ratio to mean anything.
  */
+// @req ANA-06 DAY-03
 export function relativeFactors(price, hours) {
   if (!hours.length) return { vsCheapest: null, vsPriciest: null, cheapest: null, priciest: null };
   const s = stats(hours);

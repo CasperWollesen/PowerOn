@@ -5,6 +5,7 @@ const nf3 = new Intl.NumberFormat('da-DK', { minimumFractionDigits: 3, maximumFr
 const nfShort = new Intl.NumberFormat('da-DK', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
 /** 1.2345 → '1,23' (fixed number of decimals, default 2) */
+// @req NFR-02
 export function num(value, decimals = 2) {
   if (!Number.isFinite(value)) return '–';
   if (decimals === 2) return nf2.format(value);
