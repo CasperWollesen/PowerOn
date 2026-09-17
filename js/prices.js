@@ -1,34 +1,21 @@
 // Price analysis – pure functions over arrays of { hour, price } objects.
 // No DOM, no network, no storage.
 
-export const LEVELS = ['cheap', 'normal', 'expensive'];
-
-// Below this spread (max − min in kr./kWh) a day is considered flat and every
-// hour is "normal". Avoids colouring trivial differences as cheap/expensive.
-const MIN_SPREAD = 0.4;
+import { BANDS, bandFor } from './bands.js';
 
 /**
- * Classify hours as cheap / normal / expensive relative to the day window.
- * Thresholds are thirds of the spread between the cheapest and most expensive
- * hour inside the window, so "cheap" always means "cheap for this day".
+ * Put every hour in its price band and mark whether it is inside the day window.
+ * @param {Array} hours     priced hours
+ * @param {{start,end}} window
+ * @param {number[]} edges  band thresholds, see js/bands.js
  */
 // @req ANA-02
-export function classify(hours, window) {
-  const inWindow = hours.filter((h) => h.hour >= window.start && h.hour < window.end);
-  const basis = inWindow.length ? inWindow : hours;
-  const prices = basis.map((h) => h.price);
-  const min = Math.min(...prices);
-  const max = Math.max(...prices);
-  const spread = max - min;
-
-  return hours.map((h) => {
-    let level = 'normal';
-    if (spread >= MIN_SPREAD) {
-      if (h.price <= min + spread / 3) level = 'cheap';
-      else if (h.price >= min + (spread * 2) / 3) level = 'expensive';
-    }
-    return { ...h, level, inWindow: h.hour >= window.start && h.hour < window.end };
-  });
+export function classify(hours, window, edges) {
+  return hours.map((h) => ({
+    ...h,
+    band: bandFor(h.price, edges),
+    inWindow: h.hour >= window.start && h.hour < window.end,
+  }));
 }
 
 // @req ANA-07
@@ -80,19 +67,19 @@ export function mostExpensiveWindow(hours, length) {
 }
 
 /**
- * Merge consecutive hours with the same level into periods.
- * @returns {Array<{ level, start, end, avg, min, max, hours }>}
+ * Merge consecutive hours in the same band into periods.
+ * @returns {Array<{ band, start, end, avg, min, max, hours }>}
  */
 // @req ANA-05
 export function periods(hours) {
   const out = [];
   for (const h of hours) {
     const last = out[out.length - 1];
-    if (last && last.level === h.level && last.end === h.hour) {
+    if (last && last.band === h.band && last.end === h.hour) {
       last.hours.push(h);
       last.end = h.hour + 1;
     } else {
-      out.push({ level: h.level, start: h.hour, end: h.hour + 1, hours: [h] });
+      out.push({ band: h.band, start: h.hour, end: h.hour + 1, hours: [h] });
     }
   }
   for (const p of out) {
@@ -104,14 +91,14 @@ export function periods(hours) {
   return out;
 }
 
-/** Summary per level: average price and the periods where that level occurs. */
-export function levelSummary(hours) {
+/** Summary per band: average price and the periods where that band occurs. */
+export function bandSummary(hours) {
   const ps = periods(hours);
-  return LEVELS.map((level) => {
-    const own = ps.filter((p) => p.level === level);
+  return BANDS.map(({ id }) => {
+    const own = ps.filter((p) => p.band === id);
     if (!own.length) return null;
     const all = own.flatMap((p) => p.hours);
-    return { level, avg: stats(all).avg, periods: own, hourCount: all.length };
+    return { band: id, avg: stats(all).avg, periods: own, hourCount: all.length };
   }).filter(Boolean);
 }
 

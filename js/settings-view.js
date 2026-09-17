@@ -3,6 +3,7 @@
 import { PRICE_AREAS, THEMES, PRICE_MODES } from './settings.js';
 import { MODES, unitLabel, missingDefaults } from './appliances.js';
 import { cachedGridCompanies } from './tariffs.js';
+import { BANDS, DEFAULT_BANDS, bandEdges, bandRange, sanitizeEdges } from './bands.js';
 import { installState, installInstructions } from './install.js';
 import { esc, numShort, hours as fmtHours } from './format.js';
 import { icons, segmented } from './ui.js';
@@ -79,6 +80,14 @@ export function renderSettings(container, props) {
         <input type="number" name="chartMax" value="${esc(settings.chartMax)}" min="0.5" step="0.5" inputmode="decimal">
       </label>
       <p class="muted">The chart always shows 0 to this value, so days are comparable. Higher prices are marked as over the maximum.</p>
+    </section>
+
+    <section class="card">
+      <h2>Price bands</h2>
+      <p class="muted">What counts as cheap or expensive, in kr./kWh of the ${settings.priceMode === 'spot' ? 'spot price' : 'full price'} you see. Used for every badge and colour in the app.</p>
+      <ul class="band-list" id="band-list">${bandRows(settings)}</ul>
+      <button type="button" class="btn btn-block" data-action="reset-bands">Reset to suggested values</button>
+      <p class="muted small-print">The suggested values come from a year of DK1 prices: about 12 % of hours land in Near free, 25 % in Cheap, 46 % in Fair, 16 % in Expensive and 1 % in Extreme. Each threshold must be higher than the one above it.</p>
     </section>
 
     <section class="card">
@@ -217,6 +226,37 @@ function wireEvents(container, props) {
   }
   container.querySelector('[data-action="install"]')?.addEventListener('click', onInstall);
 
+  // Price bands
+  const bandList = container.querySelector('#band-list');
+  const bandInputs = () => [...bandList.querySelectorAll('input[data-band-edge]')];
+  const currentMode = () => (settings.priceMode === 'spot' ? 'spot' : 'full');
+  function commitBands(values) {
+    const mode = currentMode();
+    // Reject values that are not ascending and positive, keeping what was there
+    // instead of resetting every threshold.
+    const valid =
+      values.length === 4 &&
+      values.every((v) => Number.isFinite(v) && v > 0) &&
+      values.every((v, i) => i === 0 || v > values[i - 1]);
+    if (valid) {
+      settings.bands = { ...settings.bands, [mode]: sanitizeEdges(values, mode) };
+      onSettingsChange({ bands: settings.bands });
+    }
+    bandList.innerHTML = bandRows(settings);
+    wireBandInputs();
+  }
+  function wireBandInputs() {
+    bandInputs().forEach((input) => {
+      input.addEventListener('change', () => {
+        commitBands(bandInputs().map((el) => Number(String(el.value).replace(',', '.'))));
+      });
+    });
+  }
+  wireBandInputs();
+  container.querySelector('[data-action="reset-bands"]').addEventListener('click', () => {
+    commitBands(DEFAULT_BANDS[currentMode()]);
+  });
+
   // General settings
   container.querySelector('select[name="priceArea"]').addEventListener('change', (e) => {
     onSettingsChange({ priceArea: e.target.value, gridCompany: '' });
@@ -310,6 +350,27 @@ function setActive(container, selector, activeBtn) {
 }
 
 // @req PRICE-05
+/** One row per band: its name, the range it covers and the editable upper bound. */
+// @req BAND-04 SET-09
+function bandRows(settings) {
+  const edges = bandEdges(settings);
+  return BANDS.map((band, i) => {
+    const range = bandRange(band.id, edges);
+    const from = range.from === null ? '0' : esc(numShort(range.from));
+    const text = range.to === null ? `above ${from}` : `${from} – ${esc(numShort(range.to))}`;
+    const input =
+      i < edges.length
+        ? `<input type="number" data-band-edge="${i}" value="${esc(edges[i])}" min="0.01" step="0.05" inputmode="decimal" aria-label="Upper limit for ${esc(band.label)}">`
+        : '<span class="band-open"></span>';
+    return `
+      <li class="band-row band-${band.id}">
+        <span class="band-name">${band.icon ? `${band.icon} ` : ''}${esc(band.label)}</span>
+        <span class="band-span muted">${text}</span>
+        ${input}
+      </li>`;
+  }).join('');
+}
+
 function gridOptions(settings) {
   const companies = cachedGridCompanies().filter((c) => c.priceArea === settings.priceArea);
   const selected = settings.gridCompany;

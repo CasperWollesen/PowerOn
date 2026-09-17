@@ -15,3 +15,4 @@ Format: context, decision, consequences.
 | [0005](0005-localstorage-only.md) | localStorage as the only store | Accepted |
 | [0006](0006-fixed-chart-axis.md) | Fixed Y axis on charts | Accepted |
 | [0007](0007-spec-and-tests.md) | Spec with IDs, browser tests, spec-check | Accepted |
+| [0008](0008-price-bands.md) | Absolute price bands instead of relative levels | Accepted |

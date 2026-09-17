@@ -11,15 +11,17 @@ The day window MUST be whole hours derived from the user's start and end time.
 - 00:00 as the end means 24.
 - An end at or before the start means the whole day.
 
-### ANA-02 · Price levels
+### ANA-02 · Hours carry their price band
 **Status:** Implemented · **Priority:** Must · **Verify:** test
 
-Hours MUST be labelled cheap, normal or expensive relative to the same day's window.
+Every hour MUST be put in its absolute price band (see [bands.md](bands.md)) and
+marked as inside or outside the day window.
 
-- Thresholds are thirds of the spread between the cheapest and most expensive hour
-  in the window.
-- If the spread is below 0,40 kr./kWh the day counts as flat and every hour is normal.
-- Hours outside the window get a level too but are marked as outside.
+- The band comes from the thresholds for the active price mode, so the same price
+  always reads the same way.
+- Hours outside the window get a band too, but are drawn as outside.
+- The relative "cheap for today" grading this replaced lives on as the best-time
+  recommendation, the cheapest windows (`ANA-04`) and the factors (`ANA-06`).
 
 ### ANA-03 · Actionable hours
 **Status:** Implemented · **Priority:** Must · **Verify:** test
@@ -39,8 +41,9 @@ run of the same length, among the actionable hours.
 ### ANA-05 · Periods
 **Status:** Implemented · **Priority:** Should · **Verify:** test
 
-Neighbouring hours with the same level MUST be merged into periods with their own
-average, so the day reads as a few bands instead of 16 bars.
+Neighbouring hours in the same band MUST be merged into periods with their own
+average, so the day reads as a few blocks instead of 16 bars. A per-band summary
+(ordered from the cheapest band upwards) drives the appliance cost chips.
 
 ### ANA-06 · Factors
 **Status:** Implemented · **Priority:** Must · **Verify:** test

@@ -7,7 +7,7 @@ Requirement → the code that implements it → the tests that verify it.
 | ID | Requirement | Status | Verify | Code | Tests |
 |---|---|---|---|---|---|
 | [ANA-01](analysis.md#ana-01--day-window) | Day window | Implemented | test | `js/settings.js` | `time.test.js` |
-| [ANA-02](analysis.md#ana-02--price-levels) | Price levels | Implemented | test | `js/prices.js` | `prices.test.js` |
+| [ANA-02](analysis.md#ana-02--hours-carry-their-price-band) | Hours carry their price band | Implemented | test | `js/prices.js` | `prices.test.js` |
 | [ANA-03](analysis.md#ana-03--actionable-hours) | Actionable hours | Implemented | test | `js/prices.js` | `prices.test.js` |
 | [ANA-04](analysis.md#ana-04--cheapest-and-most-expensive-windows) | Cheapest and most expensive windows | Implemented | test | `js/prices.js` | `prices.test.js` |
 | [ANA-05](analysis.md#ana-05--periods) | Periods | Implemented | test | `js/prices.js` | `prices.test.js` |
@@ -22,6 +22,12 @@ Requirement → the code that implements it → the tests that verify it.
 | [APPL-07](appliances.md#appl-07--costs-in-full-and-nerd) | Costs in Full and Nerd | Implemented | manual | `js/day-view.js` | – |
 | [APPL-08](appliances.md#appl-08--costs-in-simple) | Costs in Simple | Implemented | manual | `js/day-view.js` | – |
 | [APPL-09](appliances.md#appl-09--collapsible) | Collapsible | Implemented | manual | `js/day-view.js` | – |
+| [BAND-01](bands.md#band-01--five-bands) | Five bands | Implemented | test | `js/bands.js` | `bands.test.js`, `prices.test.js` |
+| [BAND-02](bands.md#band-02--badges) | Badges | Implemented | test | `js/ui.js` | `bands.test.js`, `ui.test.js` |
+| [BAND-03](bands.md#band-03--a-day-as-a-range-of-bands) | A day as a range of bands | Implemented | test | `js/ui.js` | `bands.test.js` |
+| [BAND-04](bands.md#band-04--editable-thresholds) | Editable thresholds | Implemented | test | `js/settings-view.js` | `bands.test.js` |
+| [BAND-05](bands.md#band-05--thresholds-follow-the-price-mode) | Thresholds follow the price mode | Implemented | test | `js/bands.js` | `bands.test.js`, `prices.test.js` |
+| [BAND-06](bands.md#band-06--where-bands-appear) | Where bands appear | Implemented | manual | `js/bands.js` | – |
 | [DATA-01](data.md#data-01--spot-prices) | Spot prices | Implemented | test | `js/api.js`, `js/app.js` | `time.test.js` |
 | [DATA-02](data.md#data-02--tomorrow-is-not-always-published) | Tomorrow is not always published | Implemented | manual | `js/api.js` | – |
 | [DATA-03](data.md#data-03--retry-tomorrow) | Retry tomorrow | Implemented | review | `js/app.js` | – |
@@ -60,7 +66,7 @@ Requirement → the code that implements it → the tests that verify it.
 | [OUT-01](outlook.md#out-01--model) | Model | Implemented | test | `js/forecast.js` | `forecast.test.js`, `time.test.js` |
 | [OUT-02](outlook.md#out-02--accuracy-is-measured-not-claimed) | Accuracy is measured, not claimed | Implemented | test | `js/forecast.js` | `forecast.test.js` |
 | [OUT-03](outlook.md#out-03--predictions-stay-plausible) | Predictions stay plausible | Implemented | test | `js/forecast.js` | `forecast.test.js` |
-| [OUT-04](outlook.md#out-04--levels-and-near-free-days) | Levels and near-free days | Implemented | test | `js/forecast.js` | `forecast.test.js`, `ui.test.js` |
+| [OUT-04](outlook.md#out-04--judging-a-coming-day) | Judging a coming day | Implemented | test | `js/forecast.js` | `forecast.test.js` |
 | [OUT-05](outlook.md#out-05--from-spot-to-what-the-user-pays) | From spot to what the user pays | Implemented | test | `js/outlook-view.js`, `js/tariffs.js` | `pricing.test.js` |
 | [OUT-06](outlook.md#out-06--next-days-list) | Next days list | Implemented | manual | `js/outlook-view.js`, `js/ui.js` | `ui.test.js` |
 | [OUT-07](outlook.md#out-07--best-coming-day) | Best coming day | Implemented | manual | `js/outlook-view.js` | – |
@@ -90,8 +96,9 @@ Requirement → the code that implements it → the tests that verify it.
 | [SET-06](settings.md#set-06--chart-maximum) | Chart maximum | Implemented | manual | `js/chart.js`, `js/settings-view.js` | – |
 | [SET-07](settings.md#set-07--day-window) | Day window | Implemented | manual | `js/app.js` | – |
 | [SET-08](settings.md#set-08--install-and-about) | Install and About | Implemented | manual | `js/install.js`, `js/settings-view.js` | – |
+| [SET-09](settings.md#set-09--price-bands) | Price bands | Implemented | manual | `js/settings-view.js` | – |
 | [VIEW-01](views.md#view-01--toggle) | Toggle | Implemented | test | `js/dashboard.js`, `js/ui.js` | `ui.test.js` |
 | [VIEW-02](views.md#view-02--simple) | Simple | Implemented | manual | `js/day-view.js` | – |
 | [VIEW-03](views.md#view-03--nerd) | Nerd | Implemented | manual | `js/day-view.js` | – |
 
-87 requirements · 82 with code tags · 35 with tests.
+94 requirements · 89 with code tags · 40 with tests.

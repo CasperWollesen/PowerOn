@@ -39,14 +39,15 @@ Estimates MUST stay inside what has actually happened and be internally consiste
 - The uncertainty band widens by 12 % per day ahead.
 - Horizon: from the day after the last published prices up to 7 days after today.
 
-### OUT-04 · Levels and near-free days
+### OUT-04 · Judging a coming day
 **Status:** Implemented · **Priority:** Should · **Verify:** test
 
-Each day MUST be labelled against the last 60 known days.
+Coming days MUST be judged the same way as today: by the price bands
+([bands.md](bands.md)) applied to the converted price.
 
-- Very cheap ≤ 10th percentile, cheap ≤ 33rd, expensive ≥ 67th, otherwise normal.
-- A day whose cheapest 3 hours are estimated at or below 0,05 kr./kWh spot is
-  tagged as likely near-zero.
+- The badge shows the band range of the day's estimated lowest and highest hour.
+- The average is also compared with the last 30 known days as a factor
+  ("0,5× your 30-day average"), which the model reports.
 
 ### OUT-05 · From spot to what the user pays
 **Status:** Implemented · **Priority:** Must · **Verify:** test
@@ -65,8 +66,8 @@ The Outlook tab MUST list the coming days, leading with lowest–highest price.
 
 - Known days (today, tomorrow) show their actual range, hours, average, factor
   against the 30-day average and cheapest 3 hours, and link to their tab.
-- Estimated days show `~low–high`, level badge, average with factor, cheapest
-  3 hours, near-zero tag, driver tags and the weather behind it.
+- Estimated days show `~low–high`, the band range, average with band and factor,
+  cheapest 3 hours, driver tags and the weather behind it.
 - Nerd adds the likely range for the average.
 
 ### OUT-07 · Best coming day
@@ -79,9 +80,9 @@ The tab MUST name the best day for a flexible load: the lowest estimated cheapes
 **Status:** Implemented · **Priority:** Should · **Verify:** manual
 
 The day view MUST show up to 6 coming days as small pills with weekday, estimated
-lowest and highest price and an icon (⚡ for near-zero, otherwise the main driver),
-opening the Outlook tab when tapped. While data is still loading the card says what
-it is doing.
+lowest and highest price, the band colour of the day's average and an icon
+(⚡ when the lowest hour is near free, otherwise the main driver), opening the
+Outlook tab when tapped. While data is still loading the card says what it is doing.
 
 ### OUT-09 · Drivers in plain words
 **Status:** Implemented · **Priority:** Could · **Verify:** test

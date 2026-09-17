@@ -34,6 +34,9 @@ desktop.
 
 **Today / Tomorrow**
 - [ ] Lowest, highest and average tiles match the chart and the hour table.
+- [ ] Band badges and colours agree with the thresholds in Settings, and the chart
+      stripes line up with the bars.
+- [ ] The cheapest window is still visible when every hour shares one band.
 - [ ] The now card shows the current Danish hour and matches the chart bar.
 - [ ] Best time, period strip and cheapest windows agree with each other.
 - [ ] Appliance costs: pick one appliance and recompute by hand (kWh × price).
@@ -53,7 +56,10 @@ desktop.
 - [ ] Changing grid company changes the price; check one hour against
       stromligning.dk for the same company and day.
 - [ ] Changing the day window changes recommendations and the outlook.
-- [ ] Spot mode shows lower numbers and says so in the footer.
+- [ ] Spot mode shows lower numbers, says so in the footer, and switches to the
+      spot band thresholds.
+- [ ] Editing a band threshold changes badges and colours immediately; a value
+      below the one above it is rejected without resetting the others.
 - [ ] Appliance add, edit, remove and restore examples all work.
 
 **PWA**

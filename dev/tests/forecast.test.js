@@ -1,7 +1,7 @@
 // The outlook model: training, prediction, clamping and levels.
 
 import { test, expect } from './harness.js';
-import { buildForecast, daySpotStats, levelFor, driverTags } from '../../js/forecast.js';
+import { buildForecast, daySpotStats, driverTags } from '../../js/forecast.js';
 import { addDays } from '../../js/time.js';
 
 const WINDOW = { start: 6, end: 22 };
@@ -54,6 +54,14 @@ test('OUT-01', 'the model needs enough history before it says anything', () => {
   expect(forecast.needed).toBe(30);
 });
 
+test('OUT-04', 'the model reports the recent price level a day can be compared with', () => {
+  const w = world();
+  const f = buildForecast({ spotHours: w.spotHours, weather: w.weather, window: WINDOW, todayDate: '2026-09-17', latestKnownDate: w.latest });
+  expect(f.reference.days).toBeGreaterThan(20);
+  expect(f.reference.avg30).toBeGreaterThan(0);
+  expect(f.days[0].factorVsAvg).toBeGreaterThan(0);
+});
+
 test('OUT-01 OUT-02', 'the model trains on recent days and reports its own accuracy', () => {
   const w = world();
   const f = buildForecast({ spotHours: w.spotHours, weather: w.weather, window: WINDOW, todayDate: '2026-09-17', latestKnownDate: w.latest });
@@ -89,15 +97,6 @@ test('OUT-03', 'estimates stay inside the range seen in training and keep their 
   expect(d.min3.value).toBeLessThan(d.meanWin.value + 1e-9);
   expect(d.meanWin.value).toBeLessThan(d.max1.value + 1e-9);
   expect(d.meanWin.low).toBeLessThan(d.meanWin.high);
-});
-
-test('OUT-04', 'days are labelled against the last 60 known days', () => {
-  const reference = { q10: 0.4, q33: 0.7, q67: 1.2, avg30: 0.9 };
-  expect(levelFor(0.3, reference)).toBe('very-cheap');
-  expect(levelFor(0.6, reference)).toBe('cheap');
-  expect(levelFor(0.9, reference)).toBe('normal');
-  expect(levelFor(1.5, reference)).toBe('expensive');
-  expect(levelFor(1, null)).toBe('normal');
 });
 
 test('OUT-09', 'driver tags describe the weather in plain words', () => {

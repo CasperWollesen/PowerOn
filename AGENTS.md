@@ -24,9 +24,13 @@ for Danish electricity prices. Plain HTML, CSS and ES modules on GitHub Pages.
    `CACHE_VERSION`. Behaviour changed at all? Bump `CACHE_VERSION`.
 7. **Relative paths only** (`./js/app.js`), because the site is served from a
    repository subpath.
-8. **Never invent price data.** Real prices for published days; anything else is
+8. **Bands own the colours.** Near free / Cheap / Fair / Expensive / Extreme from
+   `js/bands.js` are the only colour and badge vocabulary. The relative "when
+   today" signal is carried by words and structure: best time, cheapest windows,
+   factor pills, the marked best window.
+9. **Never invent price data.** Real prices for published days; anything else is
    labelled an estimate with its uncertainty.
-9. **Do not add a dependency** without a decision record in `docs/decisions/`.
+10. **Do not add a dependency** without a decision record in `docs/decisions/`.
 
 ## The loop for a change
 

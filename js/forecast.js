@@ -11,6 +11,9 @@
 // Targets (all spot, kr./kWh): average in the day window, cheapest 3 hours in
 // the window, lowest and highest single hour in the window, and 24-hour average.
 //
+// Days are labelled with the absolute price bands from js/bands.js, applied to
+// the converted price in the views; this module stays in spot terms.
+//
 // A walk-forward backtest on a year of DK1 data (observed weather) gave:
 //   window average  corr 0.80  MAE 0.13 kr./kWh
 //   lowest hour     corr 0.81  MAE 0.14
@@ -18,7 +21,7 @@
 // Real forecasts get less accurate with every day ahead, so the band widens.
 // @req OUT-01 OUT-02 OUT-03 OUT-04
 
-import { mean, quantile, ridgeFit, stdDev } from './stats.js';
+import { mean, ridgeFit, stdDev } from './stats.js';
 import { isOffDay } from './holidays.js';
 import { addDays } from './time.js';
 
@@ -91,15 +94,9 @@ export function buildForecast({ spotHours, weather, window, todayDate, latestKno
     if (x) rows.push({ date, x, ...target });
   }
 
-  const recent = [...known.entries()].filter(([d]) => d > addDays(latestKnownDate, -60)).map(([, s]) => s);
-  const reference = recent.length
-    ? {
-        avg30: mean([...known.entries()].filter(([d]) => d > addDays(latestKnownDate, -30)).map(([, s]) => s.meanWin)),
-        q10: quantile(recent.map((s) => s.meanWin), 0.1),
-        q33: quantile(recent.map((s) => s.meanWin), 1 / 3),
-        q67: quantile(recent.map((s) => s.meanWin), 2 / 3),
-        days: recent.length,
-      }
+  const recentDays = [...known.entries()].filter(([d]) => d > addDays(latestKnownDate, -30));
+  const reference = recentDays.length
+    ? { avg30: mean(recentDays.map(([, s]) => s.meanWin)), days: recentDays.length }
     : null;
 
   if (rows.length < MIN_TRAIN_ROWS) {
@@ -161,9 +158,7 @@ export function buildForecast({ spotHours, weather, window, todayDate, latestKno
       date,
       horizon,
       ...pred,
-      level: levelFor(pred.meanWin.value, reference),
       factorVsAvg: reference?.avg30 > 0.05 ? pred.meanWin.value / reference.avg30 : null,
-      nearlyFree: pred.min3.value <= 0.05,
       weather: weather[date],
       offDay: x[6] === 1,
       contributions: contributions(models.meanWin, x),
@@ -189,14 +184,6 @@ export function buildForecast({ spotHours, weather, window, todayDate, latestKno
 /** Per-feature contribution (kr./kWh) relative to the training average. */
 function contributions(model, x) {
   return FEATURES.map((f, j) => ({ key: f.key, label: f.label, value: (model.weights[j] * (x[j] - model.means[j])) / model.sds[j] }));
-}
-
-export function levelFor(value, reference) {
-  if (!reference) return 'normal';
-  if (value <= reference.q10) return 'very-cheap';
-  if (value <= reference.q33) return 'cheap';
-  if (value >= reference.q67) return 'expensive';
-  return 'normal';
 }
 
 /** Short human descriptions of what drives a day's price. */

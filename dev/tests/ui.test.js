@@ -1,7 +1,7 @@
 // Shared UI snippets: they are plain strings, so they can be checked directly.
 
 import { test, expect } from './harness.js';
-import { priceRange, rangeTiles, factorText, factorPills, badge, segmented, LEVEL_LABEL } from '../../js/ui.js';
+import { priceRange, rangeTiles, factorText, factorPills, badge, segmented } from '../../js/ui.js';
 
 test('DAY-08 HIST-02 OUT-06', 'a price range shows the lowest and the highest price', () => {
   const html = priceRange(0.32, 1.99);
@@ -14,8 +14,10 @@ test('DAY-08 HIST-02 OUT-06', 'a price range shows the lowest and the highest pr
 });
 
 test('DAY-08', 'the day tiles lead with the lowest and highest hour', () => {
-  const html = rangeTiles({ low: { price: 0.32, hour: 14 }, high: { price: 1.99, hour: 20 }, avg: 1.23 });
+  const html = rangeTiles({ low: { price: 0.32, hour: 14, band: 'free' }, high: { price: 1.99, hour: 20, band: 'fair' }, avg: 1.23 });
   expect(html).toContain('Lowest');
+  expect(html).toContain('Near free');
+  expect(html).toContain('Fair');
   expect(html).toContain('0,32');
   expect(html).toContain('14:00');
   expect(html).toContain('Highest');
@@ -27,7 +29,7 @@ test('DAY-08', 'the day tiles lead with the lowest and highest hour', () => {
 });
 
 test('DAY-08', 'no factor is shown when the lowest price is too close to zero', () => {
-  const html = rangeTiles({ low: { price: 0.01, hour: 3 }, high: { price: 2, hour: 19 }, avg: 1 });
+  const html = rangeTiles({ low: { price: 0.01, hour: 3, band: 'free' }, high: { price: 2, hour: 19, band: 'expensive' }, avg: 1 });
   expect(html).toContain('Lowest');
   expect(html.includes('×')).toBeFalsy();
 });
@@ -46,10 +48,9 @@ test('DAY-03', 'the now card compares with the cheapest and the most expensive h
   expect(factorPills({ vsCheapest: null, vsPriciest: null })).toBe('');
 });
 
-test('OUT-04', 'levels have readable labels', () => {
-  expect(LEVEL_LABEL['very-cheap']).toBe('Very cheap');
+test('BAND-02', 'badges use the band colour class', () => {
   expect(badge('cheap')).toContain('Cheap');
-  expect(badge('expensive')).toContain('level-expensive');
+  expect(badge('expensive')).toContain('band-expensive');
 });
 
 test('VIEW-01', 'the segmented control marks the active option', () => {

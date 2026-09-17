@@ -3,6 +3,7 @@
 // Bars above `max` are clipped at the top and marked as over-max.
 
 import { esc, num } from './format.js';
+import { BANDS, bandLabel } from './bands.js';
 import { formatHour } from './time.js';
 
 /**
@@ -14,16 +15,26 @@ import { formatHour } from './time.js';
  * @param {function} [opts.onSelect]  called with the hour object when a bar is tapped
  */
 // @req DAY-07 SET-06
-export function renderChart(container, { hours, max, nowHour = null, onSelect, showAddOn = false }) {
+export function renderChart(container, { hours, max, nowHour = null, onSelect, showAddOn = false, edges = null, bestWindow = null, showBandLabels = false }) {
   const ticks = gridTicks(max);
   const byHour = new Map(hours.map((h) => [h.hour, h]));
 
   const gridHtml = ticks
-    .map(
-      (t) =>
-        `<div class="chart-gridline" style="--y:${(t / max) * 100}%"><span>${esc(num(t, t % 1 ? 2 : 0))}</span></div>`,
-    )
+    .map((t) => `<div class="chart-gridline" style="--y:${(t / max) * 100}%"><span>${esc(num(t, t % 1 ? 2 : 0))}</span></div>`)
     .join('');
+
+  // The price bands as faint background stripes, so a bar's height reads as a band.
+  const bandHtml = edges
+    ? BANDS.map((band, i) => {
+        const from = i === 0 ? 0 : edges[i - 1];
+        const to = i === edges.length ? max : edges[i];
+        if (from >= max) return '';
+        const bottom = (from / max) * 100;
+        const height = ((Math.min(to, max) - from) / max) * 100;
+        const label = showBandLabels && height > 6 ? `<span>${esc(bandLabel(band.id))}</span>` : '';
+        return `<div class="chart-band band-${band.id}" style="--from:${bottom}%;--size:${height}%">${label}</div>`;
+      }).join('')
+    : '';
 
   const barsHtml = Array.from({ length: 24 }, (_, hour) => {
     const h = byHour.get(hour);
@@ -32,7 +43,8 @@ export function renderChart(container, { hours, max, nowHour = null, onSelect, s
     const pct = (clipped / max) * 100;
     const classes = [
       'bar',
-      `level-${h.level}`,
+      `band-${h.band}`,
+      bestWindow && hour >= bestWindow.start && hour < bestWindow.end ? 'best' : '',
       h.inWindow ? '' : 'outside',
       nowHour !== null && hour < nowHour ? 'past' : '',
       nowHour !== null && hour === nowHour ? 'now' : '',
@@ -41,7 +53,7 @@ export function renderChart(container, { hours, max, nowHour = null, onSelect, s
     ]
       .filter(Boolean)
       .join(' ');
-    const label = `${formatHour(hour)} · ${num(h.price)} kr./kWh`;
+    const label = `${formatHour(hour)} · ${num(h.price)} kr./kWh · ${bandLabel(h.band)}`;
     // Share of the bar that is tariffs, tax and VAT (the rest is spot incl. its VAT).
     let addOn = '';
     if (showAddOn && h.spot !== undefined && h.price > 0) {
@@ -58,6 +70,7 @@ export function renderChart(container, { hours, max, nowHour = null, onSelect, s
 
   container.innerHTML = `
     <div class="chart">
+      <div class="chart-bands">${bandHtml}</div>
       <div class="chart-grid">${gridHtml}</div>
       <div class="chart-bars">${barsHtml}</div>
       <div class="chart-axis">${axisHtml}</div>

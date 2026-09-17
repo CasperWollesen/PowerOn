@@ -11,7 +11,8 @@ is remembered on the device. Default: Full.
 
 Simple MUST keep only what answers "when should I use power?".
 
-- Appliances on one line each; best time with the day's range; the now card.
+- Appliances on one line each; best time with the day's range and bands; the now
+  card with its band badge.
 - No hourly chart, no cheapest-window grid, no weather details, no tables.
 
 ### VIEW-03 · Nerd

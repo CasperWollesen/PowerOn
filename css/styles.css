@@ -767,3 +767,156 @@ h3 { font-size: 0.9rem; font-weight: 600; margin: 14px 0 6px; }
   background: var(--text);
   opacity: 0.7;
 }
+
+/* ======================================================================
+   v6: price bands – one colour scale for "is this price good?"
+   ====================================================================== */
+
+:root {
+  --band-free: #0d9488;
+  --band-free-bg: #ccfbf1;
+  --band-cheap: #16a34a;
+  --band-cheap-bg: #dcfce7;
+  --band-fair: #ca8a04;
+  --band-fair-bg: #fef9c3;
+  --band-expensive: #ea580c;
+  --band-expensive-bg: #ffedd5;
+  --band-extreme: #dc2626;
+  --band-extreme-bg: #fee2e2;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --band-free: #2dd4bf;
+    --band-free-bg: rgba(45, 212, 191, 0.16);
+    --band-cheap: #4ade80;
+    --band-cheap-bg: rgba(74, 222, 128, 0.16);
+    --band-fair: #facc15;
+    --band-fair-bg: rgba(250, 204, 21, 0.15);
+    --band-expensive: #fb923c;
+    --band-expensive-bg: rgba(251, 146, 60, 0.16);
+    --band-extreme: #f87171;
+    --band-extreme-bg: rgba(248, 113, 113, 0.16);
+  }
+}
+
+:root[data-theme="dark"] {
+  --band-free: #2dd4bf;
+  --band-free-bg: rgba(45, 212, 191, 0.16);
+  --band-cheap: #4ade80;
+  --band-cheap-bg: rgba(74, 222, 128, 0.16);
+  --band-fair: #facc15;
+  --band-fair-bg: rgba(250, 204, 21, 0.15);
+  --band-expensive: #fb923c;
+  --band-expensive-bg: rgba(251, 146, 60, 0.16);
+  --band-extreme: #f87171;
+  --band-extreme-bg: rgba(248, 113, 113, 0.16);
+}
+
+/* Each band sets two local variables; every component below uses those. */
+.band-free { --band: var(--band-free); --band-bg: var(--band-free-bg); }
+.band-cheap { --band: var(--band-cheap); --band-bg: var(--band-cheap-bg); }
+.band-fair { --band: var(--band-fair); --band-bg: var(--band-fair-bg); }
+.band-expensive { --band: var(--band-expensive); --band-bg: var(--band-expensive-bg); }
+.band-extreme { --band: var(--band-extreme); --band-bg: var(--band-extreme-bg); }
+
+/* Badges */
+.badge { background: var(--band-bg, var(--surface-2)); color: var(--band, var(--text)); }
+.badge.band-range { display: inline-flex; align-items: center; gap: 5px; background: none; padding: 0; }
+.badge.band-range > span { padding: 5px 10px; border-radius: 999px; background: var(--band-bg); color: var(--band); }
+.badge.band-range .br-arrow { padding: 0; background: none; color: var(--text-muted); font-weight: 400; }
+
+/* Now card */
+.now-card { border-left-color: var(--band, var(--border)); }
+
+/* Period strip and chips */
+.seg { background: var(--band-bg, var(--surface-2)); color: var(--band, var(--text)); }
+.chip.band-free, .chip.band-cheap, .chip.band-fair, .chip.band-expensive, .chip.band-extreme { background: var(--band-bg); }
+.chip.band-free .chip-label, .chip.band-cheap .chip-label, .chip.band-fair .chip-label,
+.chip.band-expensive .chip-label, .chip.band-extreme .chip-label { color: var(--band); }
+.chip.band-free .chip-value, .chip.band-cheap .chip-value, .chip.band-fair .chip-value,
+.chip.band-expensive .chip-value, .chip.band-extreme .chip-value { color: var(--band); }
+.chip-best { background: var(--band-cheap-bg); }
+.chip-best .chip-label, .chip-best .chip-value { color: var(--band-cheap); }
+.chip-worst { background: var(--band-extreme-bg); }
+.chip-worst .chip-label, .chip-worst .chip-value { color: var(--band-extreme); }
+
+/* Chart bars and history bars */
+.bar-fill { background: var(--band, var(--band-fair)); }
+.bar.outside .bar-fill { background: var(--outside); }
+.bar.best .bar-fill { box-shadow: inset 0 0 0 2px var(--text); }
+.hbar { background: var(--band, var(--band-fair)); }
+.legend .dot { background: var(--band, var(--band-fair)); }
+
+/* Range tiles */
+.rt { background: var(--band-bg, var(--surface-2)); }
+.rt .rt-value, .rt .rt-label { color: var(--band, var(--text)); }
+.rt-avg { background: var(--surface-2); }
+.rt-avg .rt-value { color: var(--text-muted); }
+.rt-avg .rt-label { color: var(--text-muted); }
+
+/* Day pills in the coming-days strip */
+.day-pill { background: var(--band-bg, var(--surface-2)); color: var(--band, var(--text)); }
+.day-pill .dp-low { color: var(--band-cheap); }
+.day-pill .dp-high { color: var(--band-extreme); }
+
+/* Outlook and history rows */
+.band-line { margin-top: 8px; }
+.range .lo { color: var(--band-cheap); }
+.range .hi { color: var(--band-extreme); }
+.simple-values .good { color: var(--band-cheap); }
+.simple-values .bad { color: var(--band-extreme); }
+.hint.level-cheap, .tag-good { color: var(--band-cheap); }
+.tag-good { background: var(--band-cheap-bg); }
+
+/* Settings: band editor */
+.band-list { list-style: none; margin: 8px 0 12px; padding: 0; }
+.band-row {
+  display: grid;
+  grid-template-columns: 1fr auto 96px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border-radius: var(--radius-sm);
+  background: var(--band-bg, var(--surface-2));
+}
+.band-row .band-name { font-weight: 700; color: var(--band, var(--text)); white-space: nowrap; }
+.band-row .band-span { font-size: 0.78rem; white-space: nowrap; }
+.band-row input {
+  font: inherit;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  text-align: right;
+}
+.band-row .band-open { font-size: 0.78rem; text-align: right; }
+
+@media (max-width: 380px) {
+  .band-row { grid-template-columns: 1fr 84px; }
+  .band-row .band-span { grid-column: 1; font-size: 0.72rem; }
+}
+
+/* Band stripes behind the chart bars */
+.chart-bands { position: absolute; inset: 6px 0 22px 0; pointer-events: none; border-radius: 6px; overflow: hidden; }
+.chart-band {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: var(--from);
+  height: var(--size);
+  background: var(--band);
+  opacity: 0.09;
+}
+.chart-band span {
+  position: absolute;
+  left: 4px;
+  top: 2px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--band);
+  opacity: 0.9;
+}

@@ -53,7 +53,8 @@ chosen start hour.
 Each appliance MUST show what it costs now and in each price period.
 
 - Hourly appliances: a "Now" chip with the factor against the cheapest hour, plus
-  one chip per level with its hours and cost, and the factor against the cheap period.
+  one chip per price band with its hours and cost, and the factor against the
+  cheapest band.
 - Cycles: "Start now", "Best start" and "Worst start" with times, costs and the
   factor against the best start.
 

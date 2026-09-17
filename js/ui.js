@@ -1,22 +1,23 @@
 // Shared UI snippets used by several views. Everything returns HTML strings.
 
 import { esc, num } from './format.js';
+import { bandLabel, bandIcon, bandRangeLabel } from './bands.js';
 
-export const LEVEL_LABEL = {
-  'very-cheap': 'Very cheap',
-  cheap: 'Cheap',
-  normal: 'Normal',
-  expensive: 'Expensive',
-};
-
-/** CSS level class; 'very-cheap' shares the cheap colours with a stronger badge. */
-export function levelClass(level) {
-  return `level-${level}`;
+/** A price band as a coloured badge: "Cheap", "Near free", … */
+// @req BAND-02
+export function badge(band, text = bandLabel(band), { icon = true } = {}) {
+  const mark = icon ? bandIcon(band) : '';
+  return `<span class="badge band-${esc(band)}">${mark ? `${mark} ` : ''}${esc(text)}</span>`;
 }
 
-export function badge(level, text = LEVEL_LABEL[level]) {
-  return `<span class="badge ${levelClass(level)}">${esc(text)}</span>`;
+/** A day that spans several bands: "Near free → Fair". */
+// @req BAND-03
+export function bandRangeBadge(lowBand, highBand) {
+  if (lowBand === highBand) return badge(lowBand);
+  return `<span class="badge band-range"><span class="br-low band-${esc(lowBand)}">${esc(bandLabel(lowBand))}</span><span class="br-arrow">→</span><span class="br-high band-${esc(highBand)}">${esc(bandLabel(highBand))}</span></span>`;
 }
+
+export { bandRangeLabel };
 
 /** "1,8×" – a ratio rendered compactly, or '' when not meaningful. */
 // @req ANA-06
@@ -65,8 +66,8 @@ export function rangeTiles(r) {
   const spread = r.low.price >= 0.05 ? r.high.price / r.low.price : null;
   return `
     <div class="range-tiles">
-      <div class="rt rt-low"><span class="rt-label">Lowest</span><span class="rt-value">${num(r.low.price)}</span><span class="rt-time">${String(r.low.hour).padStart(2, '0')}:00</span></div>
-      <div class="rt rt-high"><span class="rt-label">Highest</span><span class="rt-value">${num(r.high.price)}</span><span class="rt-time">${String(r.high.hour).padStart(2, '0')}:00${spread && spread >= 1.05 ? ` · ${factorText(spread)}` : ''}</span></div>
+      <div class="rt band-${esc(r.low.band)}"><span class="rt-label">Lowest · ${esc(bandLabel(r.low.band))}</span><span class="rt-value">${num(r.low.price)}</span><span class="rt-time">${String(r.low.hour).padStart(2, '0')}:00</span></div>
+      <div class="rt band-${esc(r.high.band)}"><span class="rt-label">Highest · ${esc(bandLabel(r.high.band))}</span><span class="rt-value">${num(r.high.price)}</span><span class="rt-time">${String(r.high.hour).padStart(2, '0')}:00${spread && spread >= 1.05 ? ` · ${factorText(spread)}` : ''}</span></div>
       <div class="rt rt-avg"><span class="rt-label">Average</span><span class="rt-value">${num(r.avg)}</span><span class="rt-time">kr./kWh</span></div>
     </div>`;
 }

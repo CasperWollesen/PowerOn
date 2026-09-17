@@ -16,15 +16,17 @@ dishwasher, dehumidifier, oven.
 1. **Answer, then detail.** The first screen states what to do. Numbers that only
    satisfy curiosity live under the Nerd view.
 2. **Contrast over precision.** Whether an hour costs 0,33 or 0,50 kr. matters
-   less than knowing the evening costs 3 kr. Lowest, highest and factors carry
-   the message; averages are secondary.
-3. **Honest numbers.** Show the price the household actually pays, including
+   less than knowing the evening costs 3 kr. Lowest, highest, bands and factors
+   carry the message; averages are secondary.
+3. **One vocabulary.** A price band means the same thing on every tab and every
+   day, so "Fair" never has to be re-learned.
+4. **Honest numbers.** Show the price the household actually pays, including
    tariffs, tax and VAT, and say which parts are estimated.
-4. **Comparable pictures.** The chart's Y axis never rescales itself, so two days
+5. **Comparable pictures.** The chart's Y axis never rescales itself, so two days
    can be compared by eye.
-5. **No invented data.** Real prices for today and tomorrow. The outlook for
+6. **No invented data.** Real prices for today and tomorrow. The outlook for
    later days is clearly an estimate, with its own uncertainty and accuracy shown.
-6. **Private and offline-friendly.** Everything is stored on the device; no
+7. **Private and offline-friendly.** Everything is stored on the device; no
    account, no server, no analytics.
 
 ## Non-goals
@@ -48,7 +50,7 @@ own phones. No roles, no permissions.
 | **Grid company** | Netselskab; owns the local grid and charges a time-of-use tariff |
 | **Day window** | The hours the user cares about, default 06:00–22:00 |
 | **Actionable hours** | Hours in the day window that have not passed yet |
-| **Level** | cheap / normal / expensive, relative to the same day's window |
+| **Band** | Near free / Cheap / Fair / Expensive / Extreme, by absolute price |
 | **Factor** | How many times one price is of another, e.g. "2,4× cheapest" |
 | **Outlook** | Estimated price level for days beyond the published prices |
 | **Cycle** | An appliance run with a fixed energy use and duration, e.g. a wash |

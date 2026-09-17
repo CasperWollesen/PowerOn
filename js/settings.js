@@ -1,6 +1,7 @@
 // User settings: defaults, persistence and theme handling.
 
 import { load, save } from './storage.js';
+import { DEFAULT_BANDS, sanitizeEdges } from './bands.js';
 
 const KEY = 'settings';
 
@@ -26,6 +27,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   gridCompany: '',       // stromligning.dk supplier id of the grid company ('' = national tariffs only)
   supplierSurcharge: 0,  // electricity supplier's surcharge per kWh, excl. VAT
   viewMode: 'full',      // 'simple' | 'full' | 'nerd'
+  // Price band thresholds per price mode, kr./kWh – see js/bands.js
+  bands: DEFAULT_BANDS,
 });
 
 export const VIEW_MODES = [
@@ -73,6 +76,10 @@ function sanitize(s) {
   out.gridCompany = typeof out.gridCompany === 'string' ? out.gridCompany : '';
   const surcharge = Number(out.supplierSurcharge);
   out.supplierSurcharge = Number.isFinite(surcharge) && surcharge >= 0 ? surcharge : 0;
+  out.bands = {
+    full: sanitizeEdges(out.bands?.full, 'full'),
+    spot: sanitizeEdges(out.bands?.spot, 'spot'),
+  };
   delete out.includeVat;
   delete out.extraPerKwh;
   return out;

@@ -6,20 +6,20 @@ import { cachedDates, cachedDay } from './api.js';
 import { cachedWeather } from './weather.js';
 import { priceHours } from './tariffs.js';
 import { classify, cheapestWindow, stats } from './prices.js';
+import { bandEdges, bandFor, bandLabel } from './bands.js';
 import { renderChart } from './chart.js';
-import { quantile } from './stats.js';
 import { num } from './format.js';
 import { formatHour, formatHourRange, shortDate, weekdayName } from './time.js';
-import { LEVEL_LABEL, badge, stateCard, priceRange } from './ui.js';
+import { bandRangeBadge, stateCard, priceRange } from './ui.js';
 
 const PAGE = 14;
 let visibleCount = PAGE; // survives re-renders within the session
 
-function summarizeDay(model, date, weatherDays) {
+function summarizeDay(model, date, weatherDays, edges) {
   const spot = cachedDay(model.settings.priceArea, date);
   if (!spot) return null;
   const { hours } = priceHours(model.settings, date, spot.hours);
-  const classified = classify(hours, model.window);
+  const classified = classify(hours, model.window, edges);
   const win = classified.filter((h) => h.inWindow);
   if (!win.length) return null;
   const s = stats(win);
@@ -30,6 +30,7 @@ function summarizeDay(model, date, weatherDays) {
     min: s.min,
     max: s.max,
     best3: cheapestWindow(win, 3),
+    avgBand: bandFor(s.avg, edges),
     weather: weatherDays?.[date] ?? null,
   };
 }
@@ -49,14 +50,9 @@ export function renderHistoryView(model) {
   }
 
   const chartDays = mode === 'nerd' ? 90 : 30;
-  const summaries = dates.slice(0, Math.max(chartDays, visibleCount)).map((d) => summarizeDay(model, d, weatherDays)).filter(Boolean);
+  const edges = bandEdges(settings);
+  const summaries = dates.slice(0, Math.max(chartDays, visibleCount)).map((d) => summarizeDay(model, d, weatherDays, edges)).filter(Boolean);
   const chartSet = summaries.slice(0, chartDays).reverse(); // oldest → newest
-
-  // Levels relative to the shown period.
-  const avgs = chartSet.map((s) => s.avg);
-  const q33 = quantile(avgs, 1 / 3);
-  const q67 = quantile(avgs, 2 / 3);
-  const levelOf = (avg) => (avg <= q33 ? 'cheap' : avg >= q67 ? 'expensive' : 'normal');
 
   // Range bars: from the day's lowest to highest hour, with a tick at the average.
   // Fixed scale (half the hourly chart maximum) so periods stay comparable.
@@ -68,7 +64,7 @@ export function renderHistoryView(model) {
       const hi = pctOf(s.max.price);
       const avg = pctOf(s.avg);
       const title = `${weekdayName(s.date).slice(0, 3)} ${shortDate(s.date)} · low ${num(s.min.price)} · high ${num(s.max.price)} · avg ${num(s.avg)}`;
-      return `<div class="hbar-slot" title="${title}"><div class="hbar level-${levelOf(s.avg)} ${s.max.price > scaleMax ? 'over-max' : ''}" style="--lo:${lo}%;--hi:${hi}%"></div><div class="hbar-avg" style="--avg:${avg}%"></div></div>`;
+      return `<div class="hbar-slot" title="${title}"><div class="hbar band-${s.avgBand} ${s.max.price > scaleMax ? 'over-max' : ''}" style="--lo:${lo}%;--hi:${hi}%"></div><div class="hbar-avg" style="--avg:${avg}%"></div></div>`;
     })
     .join('');
   const strip = (key, cls, scale) =>
@@ -93,7 +89,7 @@ export function renderHistoryView(model) {
         </div>
       </div>
       <div class="legend">
-        <span>Lowest to highest hour per day in your window (${formatHourRange(model.window.start, model.window.end)}), line = average</span>
+        <span>Lowest to highest hour per day in your window (${formatHourRange(model.window.start, model.window.end)}), line = average, colour = the day's band</span>
         ${mode === 'simple' ? '' : '<span><i class="dot wind"></i>Wind</span><span><i class="dot sun"></i>Sun</span>'}
       </div>
     </section>`;
@@ -113,8 +109,8 @@ export function renderHistoryView(model) {
             <span class="hd-price">${priceRange(s.min.price, s.max.price)} <small>kr./kWh</small></span>
           </div>
           <div class="hd-sub">
-            ${badge(levelOf(s.avg), LEVEL_LABEL[levelOf(s.avg)])}
-            <span class="muted">low ${formatHour(s.min.hour)} · high ${formatHour(s.max.hour)} · avg ${num(s.avg)}${mode === 'simple' || !s.best3 ? '' : ` · cheapest 3 h ${formatHourRange(s.best3.start, s.best3.end)}`}</span>
+            ${bandRangeBadge(s.min.band, s.max.band)}
+            <span class="muted">low ${formatHour(s.min.hour)} · high ${formatHour(s.max.hour)} · avg ${num(s.avg)} (${bandLabel(s.avgBand).toLowerCase()})${mode === 'simple' || !s.best3 ? '' : ` · cheapest 3 h ${formatHourRange(s.best3.start, s.best3.end)}`}</span>
             ${mode === 'simple' ? '' : weather}
           </div>
         </summary>

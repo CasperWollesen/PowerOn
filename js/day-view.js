@@ -3,7 +3,7 @@
 //   full   – adds cheapest windows, chart and cost chips per price level
 //   nerd   – adds price breakdown, statistics and an hourly table
 
-import { classify, cheapestWindow, mostExpensiveWindow, periods, periodAt, levelSummary, actionableHours, stats, relativeFactors, ratio } from './prices.js';
+import { classify, cheapestWindow, mostExpensiveWindow, periods, periodAt, bandSummary, actionableHours, stats, relativeFactors, ratio } from './prices.js';
 import { priceHours } from './tariffs.js';
 import { costPerHour, cycleOptions, unitLabel } from './appliances.js';
 import { renderChart } from './chart.js';
@@ -11,7 +11,8 @@ import { esc, num, numShort, kr, hours as fmtHours } from './format.js';
 import { formatHour, formatHourRange } from './time.js';
 import { load, save } from './storage.js';
 import { median, stdDev } from './stats.js';
-import { LEVEL_LABEL, badge, factorPills, factorText, stateCard, rangeTiles } from './ui.js';
+import { badge, factorPills, factorText, stateCard, rangeTiles } from './ui.js';
+import { BANDS, bandEdges, bandLabel, bandFor } from './bands.js';
 import { renderComingDays } from './outlook-view.js';
 
 const APPLIANCES_OPEN_KEY = 'ui.appliancesOpen';
@@ -48,7 +49,8 @@ export function renderDayView(model, tab) {
   const mode = model.settings.viewMode;
   const nowHour = isToday ? model.now.hour : null;
   const { hours: priced, tariffSource } = priceHours(model.settings, day.date, day.hours);
-  const classified = classify(priced, model.window);
+  const edges = bandEdges(model.settings);
+  const classified = classify(priced, model.window, edges);
   const windowHours = classified.filter((h) => h.inWindow);
   const actionable = actionableHours(classified, { nowHour });
   const windowPeriods = periods(windowHours);
@@ -56,7 +58,7 @@ export function renderDayView(model, tab) {
   const tomorrow = model.days.tomorrow;
   const tomorrowPriced = isToday && tomorrow.status === 'ok' ? priceHours(model.settings, tomorrow.date, tomorrow.hours).hours : null;
 
-  const ctx = { model, day, mode, isToday, nowHour, classified, windowHours, actionable, windowPeriods, tomorrowPriced, tariffSource };
+  const ctx = { model, day, mode, isToday, nowHour, classified, windowHours, actionable, windowPeriods, tomorrowPriced, tariffSource, edges };
 
   const parts = [];
   parts.push(renderAppliances(ctx));
@@ -118,7 +120,7 @@ function renderAppliances(ctx) {
   // so a cycle started late in the evening can be priced across midnight.
   const timeline = tomorrowPriced ? [...classified, ...tomorrowPriced] : [...classified];
   const candidateIndices = actionable.map((h) => classified.indexOf(h));
-  const summary = levelSummary(actionable);
+  const summary = bandSummary(actionable);
   const current = nowHour !== null ? classified.find((h) => h.hour === nowHour) : null;
   const cheapest = stats(actionable).min;
 
@@ -181,13 +183,13 @@ function factorTag(value) {
 
 // @req APPL-07
 function hourRow(a, summary, current, cheapest) {
-  const cheapAvg = summary.find((s) => s.level === 'cheap')?.avg ?? cheapest.price;
+  const cheapestAvg = summary.length ? summary[0].avg : cheapest.price;
   const chips = summary
-    .map((lv) => {
-      const f = lv.level === 'cheap' ? null : ratio(lv.avg, cheapAvg);
+    .map((lv, i) => {
+      const f = i === 0 ? null : ratio(lv.avg, cheapestAvg);
       return `
-      <div class="chip level-${lv.level}">
-        <span class="chip-label">${LEVEL_LABEL[lv.level]} · ${lv.periods.map((p) => formatHourRange(p.start, p.end)).join(', ')}</span>
+      <div class="chip band-${lv.band}">
+        <span class="chip-label">${bandLabel(lv.band)} · ${lv.periods.map((p) => formatHourRange(p.start, p.end)).join(', ')}</span>
         <span class="chip-value">${kr(costPerHour(a, lv.avg))}<small>/h</small>${f && f >= 1.05 ? `<span class="chip-factor">${factorText(f)}</span>` : ''}</span>
       </div>`;
     })
@@ -218,8 +220,8 @@ function cycleRow(a, timeline, candidateIndices, current) {
     const worstF = worst ? ratio(worst.cost, best.cost, 0.05 * a.kwh) : null;
     chips = `
       ${nowOption ? `<div class="chip now"><span class="chip-label">Start now${nowF && nowF >= 1.05 ? ` · ${factorText(nowF)} best` : ' · best'}</span><span class="chip-value">${kr(nowOption.cost)}</span></div>` : ''}
-      <div class="chip level-cheap"><span class="chip-label">Best start · ${formatHour(best.hour)}</span><span class="chip-value">${kr(best.cost)}</span></div>
-      ${worst && worst.index !== best.index ? `<div class="chip level-expensive"><span class="chip-label">Worst start · ${formatHour(worst.hour)}</span><span class="chip-value">${kr(worst.cost)}${worstF && worstF >= 1.05 ? `<span class="chip-factor">${factorText(worstF)}</span>` : ''}</span></div>` : ''}`;
+      <div class="chip chip-best"><span class="chip-label">Best start · ${formatHour(best.hour)}</span><span class="chip-value">${kr(best.cost)}</span></div>
+      ${worst && worst.index !== best.index ? `<div class="chip chip-worst"><span class="chip-label">Worst start · ${formatHour(worst.hour)}</span><span class="chip-value">${kr(worst.cost)}${worstF && worstF >= 1.05 ? `<span class="chip-factor">${factorText(worstF)}</span>` : ''}</span></div>` : ''}`;
   }
   return `
     <li class="cost-row">
@@ -233,7 +235,7 @@ function cycleRow(a, timeline, candidateIndices, current) {
 
 // @req DAY-04 DAY-05 DAY-06 DAY-08
 function renderOverview(ctx) {
-  const { model, mode, isToday, nowHour, actionable, windowPeriods, windowHours, tomorrowPriced } = ctx;
+  const { model, mode, isToday, nowHour, actionable, windowPeriods, windowHours, tomorrowPriced, edges } = ctx;
   const best3 = cheapestWindow(actionable, 3) ?? cheapestWindow(actionable, Math.min(3, actionable.length));
   const day = stats(windowHours); // the whole day window, also hours already passed
 
@@ -254,7 +256,7 @@ function renderOverview(ctx) {
 
   let tomorrowHint = '';
   if (isToday && best3 && tomorrowPriced) {
-    const tActionable = actionableHours(classify(tomorrowPriced, model.window));
+    const tActionable = actionableHours(classify(tomorrowPriced, model.window, edges));
     const tBest = cheapestWindow(tActionable, best3.end - best3.start);
     if (tBest && tBest.avg < best3.avg * 0.8) {
       tomorrowHint = `<p class="hint level-cheap">Cheaper tomorrow: <strong>${formatHourRange(tBest.start, tBest.end)}</strong> at ~${num(tBest.avg)} kr./kWh</p>`;
@@ -266,7 +268,7 @@ function renderOverview(ctx) {
       const past = isToday && p.end <= nowHour;
       const n = p.hours.length;
       const label = n >= 3 ? `<span class="seg-time">${formatHourRange(p.start, p.end)}</span><span class="seg-price">${num(p.avg)}</span>` : n === 2 ? `<span class="seg-time">${p.start}</span>` : '';
-      return `<div class="seg level-${p.level} ${past ? 'past' : ''}" style="--n:${n}" title="${formatHourRange(p.start, p.end)} · ${num(p.avg)} kr./kWh">${label}</div>`;
+      return `<div class="seg band-${p.band} ${past ? 'past' : ''}" style="--n:${n}" title="${formatHourRange(p.start, p.end)} · ${bandLabel(p.band)} · ${num(p.avg)} kr./kWh">${label}</div>`;
     })
     .join('');
 
@@ -296,7 +298,7 @@ function renderOverview(ctx) {
       <p class="headline">${headline}</p>
       <p class="muted">${detail}</p>
       ${tomorrowHint}
-      ${day ? rangeTiles({ low: day.min, high: day.max, avg: day.avg }) : ''}
+      ${day ? rangeTiles({ low: { ...day.min, band: day.min.band ?? bandFor(day.min.price, edges) }, high: { ...day.max, band: day.max.band ?? bandFor(day.max.price, edges) }, avg: day.avg }) : ''}
       <div class="period-strip" aria-label="Price periods">${strip}</div>
       ${windows}
     </section>`;
@@ -313,13 +315,13 @@ function renderNow(ctx) {
   const period = periodAt(windowPeriods, nowHour);
   let hint = '';
   if (period) {
-    const next = windowPeriods.find((p) => p.start >= period.end && p.level !== period.level);
-    hint = `${LEVEL_LABEL[period.level]} until ${formatHour(period.end)}`;
-    if (period.level !== 'cheap') {
-      const nextCheap = windowPeriods.find((p) => p.start >= period.end && p.level === 'cheap');
-      if (nextCheap) hint += ` · cheap from ${formatHour(nextCheap.start)}`;
-      else if (next) hint += ` · then ${LEVEL_LABEL[next.level].toLowerCase()}`;
-    }
+    hint = `${bandLabel(period.band)} until ${formatHour(period.end)}`;
+    // Point at the next cheaper band if there is one later in the window.
+    const rank = (b) => BANDS.findIndex((x) => x.id === b);
+    const cheaper = windowPeriods.filter((p) => p.start >= period.end && rank(p.band) < rank(period.band));
+    const next = windowPeriods.find((p) => p.start >= period.end && p.band !== period.band);
+    if (cheaper.length) hint += ` · ${bandLabel(cheaper[0].band).toLowerCase()} from ${formatHour(cheaper[0].start)}`;
+    else if (next) hint += ` · then ${bandLabel(next.band).toLowerCase()}`;
   } else {
     hint = 'Outside your day window';
   }
@@ -330,7 +332,7 @@ function renderNow(ctx) {
       ? ''
       : `<span class="now-ref muted">Cheapest ${formatHour(factors.cheapest.hour)} ${num(factors.cheapest.price)} · priciest ${formatHour(factors.priciest.hour)} ${num(factors.priciest.price)}</span>`;
   return `
-    <section class="card now-card level-${current.level}">
+    <section class="card now-card band-${current.band}">
       <div class="now-left">
         <span class="label">Now · ${formatHour(nowHour)}</span>
         <span class="now-price">${num(current.price)}<small> kr./kWh</small></span>
@@ -338,7 +340,7 @@ function renderNow(ctx) {
         ${factorPills(factors)}
         ${refNote}
       </div>
-      ${badge(current.level)}
+      ${badge(current.band)}
     </section>`;
 }
 
@@ -356,9 +358,7 @@ function renderChartCard(ctx) {
       </div>
       <div id="chart"></div>
       <div class="legend">
-        <span><i class="dot level-cheap"></i>Cheap</span>
-        <span><i class="dot level-normal"></i>Normal</span>
-        <span><i class="dot level-expensive"></i>Expensive</span>
+        ${BANDS.map((b) => `<span><i class="dot band-${b.id}"></i>${b.label}</span>`).join('')}
         <span><i class="dot outside"></i>Outside window</span>
         ${nerd && ctx.model.settings.priceMode === 'full' ? '<span><i class="dot addon"></i>Tariffs, tax &amp; VAT</span>' : ''}
       </div>
@@ -366,7 +366,7 @@ function renderChartCard(ctx) {
 }
 
 function mountChart(container, ctx) {
-  const { model, classified, nowHour, mode } = ctx;
+  const { model, classified, nowHour, mode, actionable, edges } = ctx;
   const chartEl = container.querySelector('#chart');
   const readout = container.querySelector('#chart-readout');
   if (!chartEl) return;
@@ -374,10 +374,13 @@ function mountChart(container, ctx) {
     hours: classified,
     max: model.settings.chartMax,
     nowHour,
+    edges,
+    showBandLabels: mode === 'nerd',
+    bestWindow: cheapestWindow(actionable, 3) ?? cheapestWindow(actionable, 1),
     showAddOn: mode === 'nerd' && model.settings.priceMode === 'full',
     onSelect: (h) => {
       const spot = model.settings.priceMode === 'full' ? ` · spot ${num(h.spot)}` : '';
-      readout.textContent = `${formatHour(h.hour)} · ${num(h.price)} kr./kWh${spot} · ${LEVEL_LABEL[h.level]}${h.price > model.settings.chartMax ? ' · over max' : ''}`;
+      readout.textContent = `${formatHour(h.hour)} · ${num(h.price)} kr./kWh${spot} · ${bandLabel(h.band)}${h.price > model.settings.chartMax ? ' · over max' : ''}`;
       readout.classList.remove('muted');
     },
   });
@@ -471,7 +474,7 @@ function renderHourTable(ctx) {
               .map((h) => {
                 const f = ratio(h.price, min);
                 return `<tr class="${h.inWindow ? '' : 'outside'} ${h.hour === nowHour ? 'now' : ''}">
-                  <td><i class="dot level-${h.level}"></i>${formatHour(h.hour)}</td>
+                  <td><i class="dot band-${h.band}"></i>${formatHour(h.hour)}</td>
                   <td>${num(h.spot, 3)}</td>
                   <td>${num(h.price - h.spot, 3)}</td>
                   <td><strong>${num(h.price, 3)}</strong></td>

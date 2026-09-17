@@ -29,6 +29,8 @@ All settings MUST be stored on the device and validated on load.
 | Grid company | Not selected |
 | Supplier surcharge | 0 kr./kWh |
 | View mode | Full |
+| Price bands, full price | 0,50 · 1,20 · 2,00 · 3,50 kr./kWh |
+| Price bands, spot price | 0,15 · 0,60 · 1,10 · 1,80 kr./kWh |
 
 ### SET-04 · Theme
 **Status:** Implemented · **Priority:** Should · **Verify:** manual
@@ -58,3 +60,9 @@ including the outlook, which is recalculated when they change.
 
 Settings MUST explain how to install the app on the current platform and name the
 data sources and the version.
+
+### SET-09 · Price bands
+**Status:** Implemented · **Priority:** Must · **Verify:** manual
+
+Settings MUST let the user edit the four band thresholds for the active price
+mode, with a reset to the suggested values. See [bands.md](bands.md).

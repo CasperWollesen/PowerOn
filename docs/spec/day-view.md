@@ -27,7 +27,7 @@ The day view MUST be ordered by what the user came for:
 
 Today MUST show the current hour's price prominently.
 
-- Price, level badge and a hint such as "Cheap until 17:00 · cheap from 22:00".
+- Price, band badge and a hint such as "Fair until 17:00 · cheap from 22:00".
 - Two factor pills: how the price compares with the cheapest and the most
   expensive of the remaining hours ("Cheapest", "0,4× priciest").
 - Full and Nerd also name the cheapest and priciest hour and their prices.
@@ -46,8 +46,9 @@ The app MUST recommend the cheapest 3 consecutive actionable hours.
 ### DAY-05 · Period strip
 **Status:** Implemented · **Priority:** Should · **Verify:** manual
 
-The day window MUST be shown as coloured bands sized by their number of hours,
-labelled with the range and average when they are wide enough. Past bands are dimmed.
+The day window MUST be shown as blocks coloured by price band and sized by their
+number of hours, labelled with the range and average when they are wide enough.
+Past blocks are dimmed.
 
 ### DAY-06 · Cheapest windows
 **Status:** Implemented · **Priority:** Should · **Verify:** manual
@@ -63,9 +64,10 @@ Full and Nerd MUST show all 24 hours as bars on a fixed Y axis.
 - The axis always runs 0 to the configured maximum (default 10 kr./kWh) and never
   rescales per day.
 - Bars above the maximum are clipped and marked, not rescaled.
-- Colours follow the level; hours outside the window are grey, past hours dimmed,
-  the current hour outlined.
-- Tapping a bar shows hour, price, spot price (full mode) and level.
+- Colours follow the price band; hours outside the window are grey, past hours
+  dimmed, the current hour outlined and the cheapest window marked.
+- Gridlines sit at the band thresholds, named in Nerd.
+- Tapping a bar shows hour, price, spot price (full mode) and band.
 - Nerd overlays the share that is tariffs, tax and VAT.
 
 ### DAY-08 · Lowest and highest of the day
@@ -73,8 +75,8 @@ Full and Nerd MUST show all 24 hours as bars on a fixed Y axis.
 
 Every day view MUST lead with the day's range, not just the average.
 
-- Three tiles: Lowest (price and hour), Highest (price, hour and how many times
-  the lowest it is), Average.
+- Three tiles: Lowest (price, hour and band), Highest (price, hour, band and how
+  many times the lowest it is), Average.
 - Shown for both Today and Tomorrow, in all view modes.
 - Based on the whole day window, including hours that have passed.
 

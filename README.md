@@ -37,6 +37,9 @@ python dev/spec-check.py   # requirements vs code, regenerates the traceability 
 - **Outlook** – expected price level for the next ~7 days (very cheap … expensive)
   with drivers such as wind, sun and weekends.
 - **History** – every day stored on the device, with daily averages and weather.
+- **Price bands** – every price is Near free, Cheap, Fair, Expensive or Extreme,
+  with thresholds you set yourself. One vocabulary and one colour scale across
+  today, history and the outlook.
 - **View modes** – Simple, Full and Nerd (price breakdown, statistics, hourly
   table, forecast model details). Toggle in the top bar.
 - **Full price** – spot + Energinet tariffs + electricity tax + grid company
@@ -67,7 +70,8 @@ js/weather.js           Open-Meteo weather → daily wind/sun/temperature featur
 js/forecast.js          Outlook model (ridge regression on weather + recent prices)
 js/holidays.js          Danish public holidays
 js/stats.js             Statistics and ridge regression helpers
-js/prices.js            Pure price analysis (levels, periods, windows, factors)
+js/prices.js            Pure price analysis (bands per hour, periods, windows, factors)
+js/bands.js             The five price bands and their thresholds
 js/appliances.js        Appliance model, persistence and cost calculations
 js/settings.js          Settings defaults, migration, theme
 js/storage.js           Defensive localStorage wrapper
@@ -99,6 +103,20 @@ Energinet's Energi Data Service only allows browser requests from its own
 domains, so it cannot be used directly from GitHub Pages.
 
 Tomorrow's prices appear around 13:00; before that the price API returns 404.
+
+## Price bands
+
+| Band | Full price | Spot price | Share of hours (full price) |
+|---|---|---|---|
+| Near free ⚡ | < 0,50 | < 0,15 | 12 % |
+| Cheap | < 1,20 | < 0,60 | 25 % |
+| Fair | < 2,00 | < 1,10 | 46 % |
+| Expensive | < 3,50 | < 1,80 | 16 % |
+| Extreme 🔥 | ≥ 3,50 | ≥ 1,80 | 1 % |
+
+Thresholds are editable under Settings and stored per price mode. The shares come
+from a year of DK1 prices. See
+[docs/decisions/0008-price-bands.md](docs/decisions/0008-price-bands.md).
 
 ## Price model
 

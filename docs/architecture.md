@@ -94,12 +94,14 @@ All keys are prefixed `poweron.` in `localStorage`.
 | `weather.daily` | Daily weather features | 400 days |
 | `ui.*` | Small UI state (expanded, dismissed banners) | forever |
 
+Band thresholds live inside `settings` (`bands.full` and `bands.spot`).
+
 ## Conventions
 
 - Views build HTML with template literals; anything from data or the user goes
   through `esc()`.
 - Prices are `{ hour, price }`; after the price model each hour also has `spot`
   and `parts`.
-- Levels are strings (`cheap`, `normal`, `expensive`, `very-cheap`) used both as
-  CSS classes (`level-cheap`) and labels.
+- Price bands are strings (`free`, `cheap`, `fair`, `expensive`, `extreme`) used
+  both as CSS classes (`band-fair`) and labels; `js/bands.js` owns them.
 - Time is Danish wall clock everywhere; `time.js` is the only place that converts.

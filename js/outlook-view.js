@@ -2,19 +2,25 @@
 // forecast. Also exports the compact "Coming days" strip used on the day view.
 
 import { tariffProfileFor, addOnForWindow, priceHours } from './tariffs.js';
-import { daySpotStats, driverTags, levelFor } from './forecast.js';
+import { driverTags } from './forecast.js';
 import { cheapestWindow, actionableHours, classify } from './prices.js';
 import { esc, num } from './format.js';
 import { formatHour, formatHourRange, shortDate, weekdayName } from './time.js';
-import { LEVEL_LABEL, badge, factorText, stateCard, priceRange } from './ui.js';
+import { bandRangeBadge, factorText, stateCard, priceRange } from './ui.js';
+import { bandEdges, bandFor, bandLabel } from './bands.js';
 
 /** Convert a forecast day (spot, kr./kWh) to displayed prices for the user's price model. */
 // @req OUT-05
 function displayDay(model, day) {
   const profile = tariffProfileFor(model.settings.priceArea, model.settings.gridCompany, day.date);
   const addOn = addOnForWindow(model.settings, profile, model.window);
+  const edges = bandEdges(model.settings);
   const conv = (v, add) => (v + add) * addOn.factor;
+  const bandOf = (v, add) => bandFor(conv(v, add), edges);
   return {
+    band: bandOf(day.meanWin.value, addOn.avg),
+    lowBand: bandOf(day.min1.value, addOn.min1),
+    highBand: bandOf(day.max1.value, addOn.max1),
     avg: conv(day.meanWin.value, addOn.avg),
     avgLow: conv(day.meanWin.low, addOn.avg),
     avgHigh: conv(day.meanWin.high, addOn.avg),
@@ -35,31 +41,32 @@ function referenceAvgDisplay(model, forecast) {
 }
 
 /** Known days (today, tomorrow) in the same shape as forecast days. */
-function knownDays(model, forecast) {
+function knownDays(model) {
   const out = [];
   for (const tab of ['today', 'tomorrow']) {
     const day = model.days[tab];
     if (day.status !== 'ok') continue;
     const { hours } = priceHours(model.settings, day.date, day.hours);
-    const actionable = actionableHours(classify(hours, model.window));
+    const actionable = actionableHours(classify(hours, model.window, bandEdges(model.settings)));
     const best = cheapestWindow(actionable, 3);
-    const spot = daySpotStats(day.hours, model.window);
     const avg = actionable.reduce((s, h) => s + h.price, 0) / (actionable.length || 1);
     const low = actionable.reduce((m, h) => (h.price < m.price ? h : m), actionable[0]);
     const high = actionable.reduce((m, h) => (h.price > m.price ? h : m), actionable[0]);
+    const edges = bandEdges(model.settings);
     out.push({
       date: day.date,
       known: true,
       tab,
       avg,
+      band: bandFor(avg, edges),
+      lowBand: low ? low.band : 'fair',
+      highBand: high ? high.band : 'fair',
       low: low?.price,
       lowHour: low?.hour,
       high: high?.price,
       highHour: high?.hour,
       min3: best?.avg ?? null,
       best,
-      level: spot && forecast?.reference ? levelFor(spot.meanWin, forecast.reference) : 'normal',
-      nearlyFree: spot ? spot.min3 <= 0.05 : false,
     });
   }
   return out;
@@ -87,11 +94,11 @@ export function renderComingDays(model) {
     .map((d) => {
       const disp = displayDay(model, d);
       return `
-        <button type="button" class="day-pill level-${d.level}" data-action="open-outlook" title="${esc(LEVEL_LABEL[d.level])}">
+        <button type="button" class="day-pill band-${disp.band}" data-action="open-outlook" title="${esc(bandLabel(disp.band))} · ${esc(weekdayName(d.date))}">
           <span class="dp-day">${weekdayName(d.date).slice(0, 3)}</span>
           <span class="dp-low">${num(disp.low, 1)}</span>
           <span class="dp-high">${num(disp.high, 1)}</span>
-          <span class="dp-icon">${d.nearlyFree ? '⚡' : driverTags(d.weather, d.offDay)[0]?.icon ?? ''}</span>
+          <span class="dp-icon">${disp.lowBand === 'free' ? '⚡' : driverTags(d.weather, d.offDay)[0]?.icon ?? ''}</span>
         </button>`;
     })
     .join('');
@@ -99,7 +106,7 @@ export function renderComingDays(model) {
     <section class="card coming">
       ${header}
       <div class="day-pills">${pills}</div>
-      <p class="muted small-print">Estimated lowest and highest hour in your day window, kr./kWh.</p>
+      <p class="muted small-print">Estimated lowest and highest hour in your day window, kr./kWh. The colour is the band of the day's average.</p>
     </section>`;
 }
 
@@ -129,13 +136,13 @@ export function renderOutlookView(model) {
   }
 
   const refDisplay = referenceAvgDisplay(model, forecast);
-  const known = knownDays(model, forecast);
+  const known = knownDays(model);
   const predicted = forecast.days.filter((d) => !known.some((k) => k.date === d.date)).map((d) => ({ ...d, disp: displayDay(model, d) }));
 
   // Best coming day for flexible loads: lowest expected cheapest-3h price, excluding today.
   const candidates = [
-    ...known.filter((k) => k.tab === 'tomorrow' && k.min3 != null).map((k) => ({ date: k.date, min3: k.min3, avg: k.avg, low: k.low, high: k.high, known: true })),
-    ...predicted.map((d) => ({ date: d.date, min3: d.disp.min3, avg: d.disp.avg, low: d.disp.low, high: d.disp.high, known: false })),
+    ...known.filter((k) => k.tab === 'tomorrow' && k.min3 != null).map((k) => ({ date: k.date, min3: k.min3, avg: k.avg, low: k.low, high: k.high, band: k.band, lowBand: k.lowBand, highBand: k.highBand, known: true })),
+    ...predicted.map((d) => ({ date: d.date, min3: d.disp.min3, avg: d.disp.avg, low: d.disp.low, high: d.disp.high, band: d.disp.band, lowBand: d.disp.lowBand, highBand: d.disp.highBand, known: false })),
   ];
   const bestDay = candidates.reduce((best, c) => (!best || c.min3 < best.min3 ? c : best), null);
 
@@ -146,6 +153,7 @@ export function renderOutlookView(model) {
       <section class="card overview">
         <p class="headline">Best coming day: <strong>${weekdayName(bestDay.date)} ${shortDate(bestDay.date)}</strong></p>
         <p class="range-line">${priceRange(bestDay.low, bestDay.high, { approx: !bestDay.known })} <small>kr./kWh</small></p>
+        <p class="band-line">${bandRangeBadge(bestDay.lowBand, bestDay.highBand)}</p>
         <p class="muted">${bestDay.known ? 'Known prices' : 'Estimate'} · cheapest 3 h ~${num(bestDay.min3)} · average ~${num(bestDay.avg)}${f ? ` · ${factorText(f)} your 30-day average` : ''}</p>
       </section>`);
   }
@@ -181,9 +189,8 @@ function knownRow(k, refDisplay) {
         <span class="or-price">${priceRange(k.low, k.high)}</span>
       </div>
       <div class="or-sub">
-        ${badge(k.level)}
-        <span class="muted">low ${formatHour(k.lowHour)} · high ${formatHour(k.highHour)} · avg ${num(k.avg)}${f ? ` (${factorText(f)} 30-day)` : ''}${k.best ? ` · cheapest 3 h ${formatHourRange(k.best.start, k.best.end)}` : ''}</span>
-        ${k.nearlyFree ? '<span class="tag tag-good">⚡ near-zero spot</span>' : ''}
+        ${bandRangeBadge(k.lowBand, k.highBand)}
+        <span class="muted">low ${formatHour(k.lowHour)} · high ${formatHour(k.highHour)} · avg ${num(k.avg)} (${bandLabel(k.band).toLowerCase()}${f ? `, ${factorText(f)} 30-day` : ''})${k.best ? ` · cheapest 3 h ${formatHourRange(k.best.start, k.best.end)}` : ''}</span>
       </div>
     </li>`;
 }
@@ -205,9 +212,8 @@ function predictedRow(d, refDisplay, mode) {
         <span class="or-price">${priceRange(d.disp.low, d.disp.high, { approx: true })}</span>
       </div>
       <div class="or-sub">
-        ${badge(d.level)}
-        <span class="muted">avg ~${num(d.disp.avg)}${f ? ` (${factorText(f)} 30-day)` : ''} · cheapest 3 h ~${num(d.disp.min3)}${mode === 'nerd' ? ` · avg likely ${num(d.disp.avgLow)}–${num(d.disp.avgHigh)}` : ''}</span>
-        ${d.nearlyFree ? '<span class="tag tag-good">⚡ near-zero spot likely</span>' : ''}
+        ${bandRangeBadge(d.disp.lowBand, d.disp.highBand)}
+        <span class="muted">avg ~${num(d.disp.avg)} (${bandLabel(d.disp.band).toLowerCase()}${f ? `, ${factorText(f)} 30-day` : ''}) · cheapest 3 h ~${num(d.disp.min3)}${mode === 'nerd' ? ` · avg likely ${num(d.disp.avgLow)}–${num(d.disp.avgHigh)}` : ''}</span>
       </div>
       ${mode === 'simple' ? '' : `<div class="or-tags">${tags}${weatherLine}</div>`}
     </li>`;

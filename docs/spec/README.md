@@ -10,7 +10,8 @@ when behaviour changes, the spec changes in the same commit.
 | [product.md](product.md) | – | Purpose, principles, non-goals, glossary |
 | [data.md](data.md) | `DATA` | Sources, caching, refresh, time handling |
 | [pricing.md](pricing.md) | `PRICE` | Spot, tariffs, taxes, VAT, price modes |
-| [analysis.md](analysis.md) | `ANA` | Day window, levels, windows, factors |
+| [analysis.md](analysis.md) | `ANA` | Day window, bands per hour, windows, factors |
+| [bands.md](bands.md) | `BAND` | The five price bands and their thresholds |
 | [day-view.md](day-view.md) | `DAY` | Today and Tomorrow |
 | [appliances.md](appliances.md) | `APPL` | Appliance model and costs |
 | [outlook.md](outlook.md) | `OUT` | Forecast model and Outlook tab |
