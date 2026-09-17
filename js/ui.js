@@ -46,6 +46,29 @@ export function factorPills({ vsCheapest, vsPriciest }, { compact = false } = {}
   return `<span class="pills ${compact ? 'compact' : ''}">${pills.join('')}</span>`;
 }
 
+/**
+ * Lowest–highest price of a day, e.g. "0,07 – 2,10". Lowest is green, highest red.
+ * @req DAY-08 HIST-02 OUT-06
+ */
+export function priceRange(low, high, { approx = false } = {}) {
+  return `<span class="range">${approx ? '<span class="sep">~</span>' : ''}<span class="lo">${num(low)}</span><span class="sep">–</span><span class="hi">${num(high)}</span></span>`;
+}
+
+/**
+ * Three tiles: lowest and highest hour of the day (prominent) and the average.
+ * @param {{ low: {price, hour}, high: {price, hour}, avg: number }} r
+ * @req DAY-08
+ */
+export function rangeTiles(r) {
+  const spread = r.low.price >= 0.05 ? r.high.price / r.low.price : null;
+  return `
+    <div class="range-tiles">
+      <div class="rt rt-low"><span class="rt-label">Lowest</span><span class="rt-value">${num(r.low.price)}</span><span class="rt-time">${String(r.low.hour).padStart(2, '0')}:00</span></div>
+      <div class="rt rt-high"><span class="rt-label">Highest</span><span class="rt-value">${num(r.high.price)}</span><span class="rt-time">${String(r.high.hour).padStart(2, '0')}:00${spread && spread >= 1.05 ? ` · ${factorText(spread)}` : ''}</span></div>
+      <div class="rt rt-avg"><span class="rt-label">Average</span><span class="rt-value">${num(r.avg)}</span><span class="rt-time">kr./kWh</span></div>
+    </div>`;
+}
+
 export function segmented(name, options, active, { small = false, label = '' } = {}) {
   return `
     <div class="segmented ${small ? 'small' : ''}" role="radiogroup" ${label ? `aria-label="${esc(label)}"` : ''}>

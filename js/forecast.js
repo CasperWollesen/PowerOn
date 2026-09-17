@@ -9,11 +9,14 @@
 //   tempDk   – Danish mean temperature
 //   offDay   – weekend or public holiday
 // Targets (all spot, kr./kWh): average in the day window, cheapest 3 hours in
-// the window, and 24-hour average.
+// the window, lowest and highest single hour in the window, and 24-hour average.
 //
-// A walk-forward backtest on a year of DK1 data gave a correlation of ~0.8 with
-// actual daily prices (MAE ~0.13 kr./kWh) using observed weather; real forecasts
-// get less accurate with every day ahead, so the uncertainty band widens.
+// A walk-forward backtest on a year of DK1 data (observed weather) gave:
+//   window average  corr 0.80  MAE 0.13 kr./kWh
+//   lowest hour     corr 0.81  MAE 0.14
+//   highest hour    corr 0.57  MAE 0.30  (evening peaks are harder to predict)
+// Real forecasts get less accurate with every day ahead, so the band widens.
+// @req OUT-01 OUT-02 OUT-03 OUT-04
 
 import { mean, quantile, ridgeFit, stdDev } from './stats.js';
 import { isOffDay } from './holidays.js';
@@ -36,7 +39,7 @@ const ANCHOR_LAG = 3;
 const LAMBDA = 2;
 const HORIZON_DAYS = 7;
 
-/** Day statistics from spot hours: window average, cheapest 3 h in window, 24 h average. */
+/** Day statistics from spot hours: window average, cheapest 3 h, lowest/highest hour in window, 24 h average. */
 export function daySpotStats(hours, window) {
   if (!hours?.length) return null;
   const all = hours.map((h) => h.price);
@@ -44,7 +47,7 @@ export function daySpotStats(hours, window) {
   if (win.length < 3) return null;
   let min3 = Infinity;
   for (let i = 0; i + 3 <= win.length; i++) min3 = Math.min(min3, (win[i] + win[i + 1] + win[i + 2]) / 3);
-  return { meanWin: mean(win), min3, mean24: mean(all) };
+  return { meanWin: mean(win), min3, min1: Math.min(...win), max1: Math.max(...win), mean24: mean(all) };
 }
 
 /**
@@ -103,7 +106,7 @@ export function buildForecast({ spotHours, weather, window, todayDate, latestKno
     return { status: 'insufficient', trainingDays: rows.length, needed: MIN_TRAIN_ROWS, knownDays: known.size, reference };
   }
 
-  const targets = ['meanWin', 'min3', 'mean24'];
+  const targets = ['meanWin', 'min3', 'min1', 'max1', 'mean24'];
 
   // Walk-forward validation on the most recent rows: fit on earlier rows only.
   const validation = {};
@@ -150,6 +153,10 @@ export function buildForecast({ spotHours, weather, window, todayDate, latestKno
       const sd = (validation[t]?.sd || stdDev(rows.map((r) => r[t] - models[t].predict(r.x)))) * widen;
       pred[t] = { value, low: clamp(value - sd), high: clamp(value + sd) };
     }
+    // Separate models can disagree; keep lowest ≤ cheapest 3 h ≤ average ≤ highest.
+    pred.min3.value = Math.min(pred.min3.value, pred.meanWin.value);
+    pred.min1.value = Math.min(pred.min1.value, pred.min3.value);
+    pred.max1.value = Math.max(pred.max1.value, pred.meanWin.value);
     days.push({
       date,
       horizon,

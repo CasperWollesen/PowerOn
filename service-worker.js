@@ -4,7 +4,7 @@
 //
 // Bump CACHE_VERSION whenever app files change, so clients pick up the update.
 
-const CACHE_VERSION = 'poweron-v3';
+const CACHE_VERSION = 'poweron-v4';
 
 const APP_SHELL = [
   './',

@@ -5,8 +5,8 @@ import { tariffProfileFor, addOnForWindow, priceHours } from './tariffs.js';
 import { daySpotStats, driverTags, levelFor } from './forecast.js';
 import { cheapestWindow, actionableHours, classify } from './prices.js';
 import { esc, num } from './format.js';
-import { formatHourRange, shortDate, weekdayName } from './time.js';
-import { LEVEL_LABEL, badge, factorText, stateCard } from './ui.js';
+import { formatHour, formatHourRange, shortDate, weekdayName } from './time.js';
+import { LEVEL_LABEL, badge, factorText, stateCard, priceRange } from './ui.js';
 
 /** Convert a forecast day (spot, kr./kWh) to displayed prices for the user's price model. */
 function displayDay(model, day) {
@@ -20,6 +20,8 @@ function displayDay(model, day) {
     min3: conv(day.min3.value, addOn.min3),
     min3Low: conv(day.min3.low, addOn.min3),
     min3High: conv(day.min3.high, addOn.min3),
+    low: conv(day.min1.value, addOn.min1),
+    high: conv(day.max1.value, addOn.max1),
     addOn,
   };
 }
@@ -42,11 +44,17 @@ function knownDays(model, forecast) {
     const best = cheapestWindow(actionable, 3);
     const spot = daySpotStats(day.hours, model.window);
     const avg = actionable.reduce((s, h) => s + h.price, 0) / (actionable.length || 1);
+    const low = actionable.reduce((m, h) => (h.price < m.price ? h : m), actionable[0]);
+    const high = actionable.reduce((m, h) => (h.price > m.price ? h : m), actionable[0]);
     out.push({
       date: day.date,
       known: true,
       tab,
       avg,
+      low: low?.price,
+      lowHour: low?.hour,
+      high: high?.price,
+      highHour: high?.hour,
       min3: best?.avg ?? null,
       best,
       level: spot && forecast?.reference ? levelFor(spot.meanWin, forecast.reference) : 'normal',
@@ -79,7 +87,8 @@ export function renderComingDays(model) {
       return `
         <button type="button" class="day-pill level-${d.level}" data-action="open-outlook" title="${esc(LEVEL_LABEL[d.level])}">
           <span class="dp-day">${weekdayName(d.date).slice(0, 3)}</span>
-          <span class="dp-price">~${num(disp.avg, 1)}</span>
+          <span class="dp-low">${num(disp.low, 1)}</span>
+          <span class="dp-high">${num(disp.high, 1)}</span>
           <span class="dp-icon">${d.nearlyFree ? '⚡' : driverTags(d.weather, d.offDay)[0]?.icon ?? ''}</span>
         </button>`;
     })
@@ -88,7 +97,7 @@ export function renderComingDays(model) {
     <section class="card coming">
       ${header}
       <div class="day-pills">${pills}</div>
-      <p class="muted small-print">Estimated average in your day window, kr./kWh.</p>
+      <p class="muted small-print">Estimated lowest and highest hour in your day window, kr./kWh.</p>
     </section>`;
 }
 
@@ -122,8 +131,8 @@ export function renderOutlookView(model) {
 
   // Best coming day for flexible loads: lowest expected cheapest-3h price, excluding today.
   const candidates = [
-    ...known.filter((k) => k.tab === 'tomorrow' && k.min3 != null).map((k) => ({ date: k.date, min3: k.min3, avg: k.avg, known: true })),
-    ...predicted.map((d) => ({ date: d.date, min3: d.disp.min3, avg: d.disp.avg, known: false })),
+    ...known.filter((k) => k.tab === 'tomorrow' && k.min3 != null).map((k) => ({ date: k.date, min3: k.min3, avg: k.avg, low: k.low, high: k.high, known: true })),
+    ...predicted.map((d) => ({ date: d.date, min3: d.disp.min3, avg: d.disp.avg, low: d.disp.low, high: d.disp.high, known: false })),
   ];
   const bestDay = candidates.reduce((best, c) => (!best || c.min3 < best.min3 ? c : best), null);
 
@@ -133,7 +142,8 @@ export function renderOutlookView(model) {
     parts.push(`
       <section class="card overview">
         <p class="headline">Best coming day: <strong>${weekdayName(bestDay.date)} ${shortDate(bestDay.date)}</strong></p>
-        <p class="muted">${bestDay.known ? 'Known prices' : 'Estimate'} · cheapest 3 h ~${num(bestDay.min3)} kr./kWh · day average ~${num(bestDay.avg)}${f ? ` · ${factorText(f)} your 30-day average` : ''}</p>
+        <p class="range-line">${priceRange(bestDay.low, bestDay.high, { approx: !bestDay.known })} <small>kr./kWh</small></p>
+        <p class="muted">${bestDay.known ? 'Known prices' : 'Estimate'} · cheapest 3 h ~${num(bestDay.min3)} · average ~${num(bestDay.avg)}${f ? ` · ${factorText(f)} your 30-day average` : ''}</p>
       </section>`);
   }
 
@@ -146,7 +156,7 @@ export function renderOutlookView(model) {
     <section class="card">
       <div class="card-head"><h2>Next days</h2>${refDisplay ? `<span class="muted">30-day avg ${num(refDisplay)}</span>` : ''}</div>
       <ul class="outlook-list">${rows}</ul>
-      <p class="muted small-print">Estimates come from the weather forecast (wind and sun in Denmark and Germany, temperature, weekends) and the last ${forecast.trainingDays} days of prices. They get less certain further ahead. Prices ${settings.priceMode === 'full' ? 'include tariffs, tax and VAT' : 'are spot prices'}.</p>
+      <p class="muted small-print">Estimates come from the weather forecast (wind and sun in Denmark and Germany, temperature, weekends) and the last ${forecast.trainingDays} days of prices. They get less certain further ahead, and the highest hour is harder to predict than the lowest. Prices ${settings.priceMode === 'full' ? 'include tariffs, tax and VAT' : 'are spot prices'}.</p>
     </section>`);
 
   if (mode === 'nerd') parts.push(renderModelCard(forecast, predicted));
@@ -165,11 +175,11 @@ function knownRow(k, refDisplay) {
     <li class="outlook-row" data-open-tab="${k.tab}" role="button" tabindex="0">
       <div class="or-main">
         <span class="or-date"><strong>${weekdayName(k.date)}</strong> ${shortDate(k.date)} <span class="tag">Known</span></span>
-        <span class="or-price">${num(k.avg)} <small>kr./kWh</small></span>
+        <span class="or-price">${priceRange(k.low, k.high)}</span>
       </div>
       <div class="or-sub">
         ${badge(k.level)}
-        <span class="muted">${k.best ? `cheapest ${formatHourRange(k.best.start, k.best.end)} ~${num(k.min3)}` : ''}${f ? ` · ${factorText(f)} avg` : ''}</span>
+        <span class="muted">low ${formatHour(k.lowHour)} · high ${formatHour(k.highHour)} · avg ${num(k.avg)}${f ? ` (${factorText(f)} 30-day)` : ''}${k.best ? ` · cheapest 3 h ${formatHourRange(k.best.start, k.best.end)}` : ''}</span>
         ${k.nearlyFree ? '<span class="tag tag-good">⚡ near-zero spot</span>' : ''}
       </div>
     </li>`;
@@ -189,11 +199,11 @@ function predictedRow(d, refDisplay, mode) {
     <li class="outlook-row">
       <div class="or-main">
         <span class="or-date"><strong>${weekdayName(d.date)}</strong> ${shortDate(d.date)}</span>
-        <span class="or-price">~${num(d.disp.avg)} <small>kr./kWh</small></span>
+        <span class="or-price">${priceRange(d.disp.low, d.disp.high, { approx: true })}</span>
       </div>
       <div class="or-sub">
         ${badge(d.level)}
-        <span class="muted">${mode === 'simple' ? '' : `range ${num(d.disp.avgLow)}–${num(d.disp.avgHigh)} · `}cheapest 3 h ~${num(d.disp.min3)}${f ? ` · ${factorText(f)} avg` : ''}</span>
+        <span class="muted">avg ~${num(d.disp.avg)}${f ? ` (${factorText(f)} 30-day)` : ''} · cheapest 3 h ~${num(d.disp.min3)}${mode === 'nerd' ? ` · avg likely ${num(d.disp.avgLow)}–${num(d.disp.avgHigh)}` : ''}</span>
         ${d.nearlyFree ? '<span class="tag tag-good">⚡ near-zero spot likely</span>' : ''}
       </div>
       ${mode === 'simple' ? '' : `<div class="or-tags">${tags}${weatherLine}</div>`}
@@ -219,7 +229,9 @@ function renderModelCard(forecast, predicted) {
         <td>${Math.round(w.windDk * 100)}/${Math.round(w.windDe * 100)}</td>
         <td>${num(w.solarDk, 1)}/${num(w.solarDe, 1)}</td>
         <td>${num(w.tempDk, 0)}</td>
+        <td>${num(d.min1.value, 2)}</td>
         <td>${num(d.meanWin.value, 2)}</td>
+        <td>${num(d.max1.value, 2)}</td>
         <td>${num(d.min3.value, 2)}</td>
         <td class="small-print">${esc(top)}</td>
       </tr>`;
@@ -234,6 +246,8 @@ function renderModelCard(forecast, predicted) {
         <dt>R² (window avg, in-sample)</dt><dd>${num(forecast.r2, 2)}</dd>
         <dt>Validation MAE, window avg</dt><dd>${v.meanWin ? `${num(v.meanWin.mae, 3)} kr. (n=${v.meanWin.n})` : '–'}</dd>
         <dt>Validation MAE, cheapest 3 h</dt><dd>${v.min3 ? `${num(v.min3.mae, 3)} kr. (n=${v.min3.n})` : '–'}</dd>
+        <dt>Validation MAE, lowest hour</dt><dd>${v.min1 ? `${num(v.min1.mae, 3)} kr. (n=${v.min1.n})` : '–'}</dd>
+        <dt>Validation MAE, highest hour</dt><dd>${v.max1 ? `${num(v.max1.mae, 3)} kr. (n=${v.max1.n})` : '–'}</dd>
         <dt>Latest known prices</dt><dd>${shortDate(forecast.latestKnownDate)}</dd>
       </dl>
       <h3>Weights <span class="muted">kr./kWh per std. dev.</span></h3>
@@ -241,7 +255,7 @@ function renderModelCard(forecast, predicted) {
       <h3>Inputs and spot estimates</h3>
       <div class="table-wrap">
         <table class="data-table">
-          <thead><tr><th>Day</th><th>Wind DK/DE %</th><th>Sun DK/DE</th><th>°C</th><th>Avg</th><th>Min 3 h</th><th>Top drivers</th></tr></thead>
+          <thead><tr><th>Day</th><th>Wind DK/DE %</th><th>Sun DK/DE</th><th>°C</th><th>Low</th><th>Avg</th><th>High</th><th>Min 3 h</th><th>Top drivers</th></tr></thead>
           <tbody>${featureRows}</tbody>
         </table>
       </div>

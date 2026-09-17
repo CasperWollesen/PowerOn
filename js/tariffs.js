@@ -182,10 +182,12 @@ export function applyPriceModel(hours, settings, profile) {
 
 /**
  * Non-spot cost per kWh (excl. VAT) for converting spot forecasts to displayed prices.
- * `avg` is the average over the window hours, `min3` the cheapest 3 consecutive hours.
+ * `avg` is the average over the window hours, `min3` the cheapest 3 consecutive hours,
+ * `min1`/`max1` the lowest/highest single hour (cheap spot hours tend to fall in
+ * low-tariff hours and price peaks in the 17–21 tariff peak).
  */
 export function addOnForWindow(settings, profile, window) {
-  if (settings.priceMode === 'spot') return { avg: 0, min3: 0, factor: 1 };
+  if (settings.priceMode === 'spot') return { avg: 0, min3: 0, min1: 0, max1: 0, factor: 1 };
   const surcharge = settings.supplierSurcharge || 0;
   const values = [];
   for (let h = window.start; h < window.end; h++) {
@@ -195,7 +197,9 @@ export function addOnForWindow(settings, profile, window) {
   const avg = values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
   let min3 = avg;
   for (let i = 0; i + 3 <= values.length; i++) min3 = Math.min(min3, (values[i] + values[i + 1] + values[i + 2]) / 3);
-  return { avg, min3, factor: 1 + VAT_RATE };
+  const min1 = values.length ? Math.min(...values) : 0;
+  const max1 = values.length ? Math.max(...values) : 0;
+  return { avg, min3, min1, max1, factor: 1 + VAT_RATE };
 }
 
 /** Convert a spot price to the displayed price with a given add-on (excl. VAT). */

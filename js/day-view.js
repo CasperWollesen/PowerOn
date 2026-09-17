@@ -11,7 +11,7 @@ import { esc, num, numShort, kr, hours as fmtHours } from './format.js';
 import { formatHour, formatHourRange } from './time.js';
 import { load, save } from './storage.js';
 import { median, stdDev } from './stats.js';
-import { LEVEL_LABEL, badge, factorPills, factorText, stateCard } from './ui.js';
+import { LEVEL_LABEL, badge, factorPills, factorText, stateCard, rangeTiles } from './ui.js';
 import { renderComingDays } from './outlook-view.js';
 
 const APPLIANCES_OPEN_KEY = 'ui.appliancesOpen';
@@ -230,7 +230,7 @@ function cycleRow(a, timeline, candidateIndices, current) {
 function renderOverview(ctx) {
   const { model, mode, isToday, nowHour, actionable, windowPeriods, windowHours, tomorrowPriced } = ctx;
   const best3 = cheapestWindow(actionable, 3) ?? cheapestWindow(actionable, Math.min(3, actionable.length));
-  const s = stats(actionable);
+  const day = stats(windowHours); // the whole day window, also hours already passed
 
   let factorHtml = '';
   let factorNote = '';
@@ -268,7 +268,7 @@ function renderOverview(ctx) {
   const detail =
     mode === 'simple'
       ? best3 ? `${best3.end - best3.start} h at ~${num(best3.avg)} kr./kWh` : ''
-      : `${best3 ? `${best3.end - best3.start} h at ~${num(best3.avg)} kr./kWh` : ''}${factorNote}${s ? ` · cheapest hour ${formatHour(s.min.hour)} (${num(s.min.price)}) · most expensive ${formatHour(s.max.hour)} (${num(s.max.price)})` : ''}`;
+      : `${best3 ? `${best3.end - best3.start} h at ~${num(best3.avg)} kr./kWh` : ''}${factorNote}`;
 
   const windows =
     mode === 'simple'
@@ -291,6 +291,7 @@ function renderOverview(ctx) {
       <p class="headline">${headline}</p>
       <p class="muted">${detail}</p>
       ${tomorrowHint}
+      ${day ? rangeTiles({ low: day.min, high: day.max, avg: day.avg }) : ''}
       <div class="period-strip" aria-label="Price periods">${strip}</div>
       ${windows}
     </section>`;
