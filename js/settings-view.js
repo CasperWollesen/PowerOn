@@ -1,8 +1,11 @@
 // Settings view: general settings + appliance management.
 
-import { PRICE_AREAS, THEMES } from './settings.js';
+import { PRICE_AREAS, THEMES, PRICE_MODES } from './settings.js';
 import { MODES, unitLabel, missingDefaults } from './appliances.js';
+import { cachedGridCompanies } from './tariffs.js';
+import { installState, installInstructions } from './install.js';
 import { esc, numShort, hours as fmtHours } from './format.js';
+import { icons, segmented } from './ui.js';
 
 /**
  * @param {HTMLElement} container
@@ -19,7 +22,7 @@ export function renderSettings(container, props) {
 
   container.innerHTML = `
     <header class="topbar">
-      <button type="button" class="icon-btn" data-action="back" aria-label="Back">${backIcon()}</button>
+      <button type="button" class="icon-btn" data-action="back" aria-label="Back">${icons.back}</button>
       <h1>Settings</h1>
       <span class="topbar-spacer"></span>
     </header>
@@ -53,15 +56,23 @@ export function renderSettings(container, props) {
         </label>
       </div>
       <p class="muted">Recommendations only consider hours between these times.</p>
-      <label class="field toggle">
-        <span>Include 25 % VAT</span>
-        <input type="checkbox" name="includeVat" ${settings.includeVat ? 'checked' : ''}>
-      </label>
-      <label class="field">
-        <span>Tariffs &amp; taxes per kWh, excl. VAT (kr.)</span>
-        <input type="number" name="extraPerKwh" value="${esc(settings.extraPerKwh)}" min="0" step="0.01" inputmode="decimal" placeholder="0">
-      </label>
-      <p class="muted">The source only knows the raw spot price. Add your grid tariff and electricity tax here to get the price you actually pay. 0 shows the spot price.</p>
+      <div class="field">
+        <span>Price shown</span>
+        ${segmented('price-mode', PRICE_MODES, settings.priceMode, { label: 'Price shown' })}
+      </div>
+      <p class="muted">Full price = spot price + Energinet tariffs + electricity tax + your grid company's tariff + supplier surcharge, all incl. 25 % VAT.</p>
+      <div data-full-only ${settings.priceMode === 'full' ? '' : 'hidden'}>
+        <label class="field">
+          <span>Grid company (netselskab)</span>
+          <select name="gridCompany">${gridOptions(settings)}</select>
+        </label>
+        <p class="muted">Shown on your electricity bill. Its tariff is highest 17–21 and changes with the season.</p>
+        <label class="field">
+          <span>Supplier surcharge per kWh, excl. VAT (kr.)</span>
+          <input type="number" name="supplierSurcharge" value="${esc(settings.supplierSurcharge)}" min="0" step="0.01" inputmode="decimal" placeholder="0">
+        </label>
+        <p class="muted">Your electricity supplier's markup on the spot price (spottillæg). Often 0–0,10 kr.</p>
+      </div>
       <label class="field">
         <span>Maximum chart price (kr./kWh)</span>
         <input type="number" name="chartMax" value="${esc(settings.chartMax)}" min="0.5" step="0.5" inputmode="decimal">
@@ -79,9 +90,15 @@ export function renderSettings(container, props) {
       </div>
     </section>
 
+    <section class="card">
+      <h2>Install as app</h2>
+      <p class="muted">${installInstructions(icons.share)}</p>
+      ${installState().canPrompt ? '<button type="button" class="btn btn-primary btn-block" data-action="install">Install app</button>' : ''}
+    </section>
+
     <section class="card about">
       <h2>About</h2>
-      <p class="muted">Prices: Nord Pool day-ahead spot prices from elprisenligenu.dk (hourly average of the 15-minute prices). VAT and tariffs are added according to the settings above. Weather: Open-Meteo.</p>
+      <p class="muted">Spot prices: Nord Pool day-ahead prices via elprisenligenu.dk (hourly average of the 15-minute prices). Tariffs and taxes: stromligning.dk. Weather: Open-Meteo. The outlook for coming days is an estimate from the weather forecast.</p>
       <p class="muted">Version <span id="app-version">1.0.0</span></p>
     </section>
 
@@ -157,14 +174,14 @@ function applianceRow(a) {
         <span class="muted">${esc(detail)}</span>
       </div>
       <div class="appliance-actions">
-        <button type="button" class="icon-btn" data-action="edit" aria-label="Edit ${esc(a.name)}">${editIcon()}</button>
-        <button type="button" class="icon-btn danger" data-action="remove" aria-label="Remove ${esc(a.name)}">${trashIcon()}</button>
+        <button type="button" class="icon-btn" data-action="edit" aria-label="Edit ${esc(a.name)}">${icons.edit}</button>
+        <button type="button" class="icon-btn danger" data-action="remove" aria-label="Remove ${esc(a.name)}">${icons.trash}</button>
       </div>
     </li>`;
 }
 
 function wireEvents(container, props) {
-  const { settings, appliances, onSettingsChange, onApplianceSave, onApplianceRemove, onAddDefaults, onBack } = props;
+  const { settings, appliances, onSettingsChange, onApplianceSave, onApplianceRemove, onAddDefaults, onBack, loadGridCompanies, onInstall } = props;
 
   container.querySelector('[data-action="back"]').addEventListener('click', onBack);
 
@@ -173,15 +190,36 @@ function wireEvents(container, props) {
   container.querySelector('[data-action="add-all-defaults"]')?.addEventListener('click', () => onAddDefaults(missingDefaults(appliances).map((d) => d.name)));
 
   // Price model
-  container.querySelector('input[name="includeVat"]').addEventListener('change', (e) => onSettingsChange({ includeVat: e.target.checked }));
-  container.querySelector('input[name="extraPerKwh"]').addEventListener('change', (e) => {
-    const v = Number(String(e.target.value).replace(',', '.'));
-    if (Number.isFinite(v) && v >= 0) onSettingsChange({ extraPerKwh: v });
-    else e.target.value = settings.extraPerKwh;
+  const areaSelect = container.querySelector('select[name="priceArea"]');
+  const gridSelect = container.querySelector('select[name="gridCompany"]');
+  container.querySelectorAll('[data-price-mode]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const mode = btn.dataset.priceMode;
+      onSettingsChange({ priceMode: mode });
+      setActive(container, '[data-price-mode]', btn);
+      container.querySelector('[data-full-only]').hidden = mode !== 'full';
+    });
   });
+  gridSelect.addEventListener('change', (e) => onSettingsChange({ gridCompany: e.target.value }));
+  container.querySelector('input[name="supplierSurcharge"]').addEventListener('change', (e) => {
+    const v = Number(String(e.target.value).replace(',', '.'));
+    if (Number.isFinite(v) && v >= 0) onSettingsChange({ supplierSurcharge: v });
+    else e.target.value = settings.supplierSurcharge;
+  });
+  if (loadGridCompanies) {
+    loadGridCompanies()
+      .then(() => {
+        gridSelect.innerHTML = gridOptions({ priceArea: areaSelect.value, gridCompany: gridSelect.value });
+      })
+      .catch(() => {});
+  }
+  container.querySelector('[data-action="install"]')?.addEventListener('click', onInstall);
 
   // General settings
-  container.querySelector('select[name="priceArea"]').addEventListener('change', (e) => onSettingsChange({ priceArea: e.target.value }));
+  container.querySelector('select[name="priceArea"]').addEventListener('change', (e) => {
+    onSettingsChange({ priceArea: e.target.value, gridCompany: '' });
+    container.querySelector('select[name="gridCompany"]').innerHTML = gridOptions({ priceArea: e.target.value, gridCompany: '' });
+  });
   container.querySelector('input[name="dayStart"]').addEventListener('change', (e) => onSettingsChange({ dayStart: e.target.value || settings.dayStart }));
   container.querySelector('input[name="dayEnd"]').addEventListener('change', (e) => onSettingsChange({ dayEnd: e.target.value || settings.dayEnd }));
   container.querySelector('input[name="chartMax"]').addEventListener('change', (e) => {
@@ -192,11 +230,7 @@ function wireEvents(container, props) {
   container.querySelectorAll('[data-theme]').forEach((btn) => {
     btn.addEventListener('click', () => {
       onSettingsChange({ theme: btn.dataset.theme });
-      container.querySelectorAll('[data-theme]').forEach((b) => {
-        const active = b === btn;
-        b.classList.toggle('active', active);
-        b.setAttribute('aria-checked', String(active));
-      });
+      setActive(container, '[data-theme]', btn);
     });
   });
 
@@ -265,12 +299,24 @@ function wireEvents(container, props) {
   });
 }
 
-function backIcon() {
-  return '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>';
+function setActive(container, selector, activeBtn) {
+  container.querySelectorAll(selector).forEach((b) => {
+    const active = b === activeBtn;
+    b.classList.toggle('active', active);
+    b.setAttribute('aria-checked', String(active));
+  });
 }
-function editIcon() {
-  return '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>';
-}
-function trashIcon() {
-  return '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
+
+function gridOptions(settings) {
+  const companies = cachedGridCompanies().filter((c) => c.priceArea === settings.priceArea);
+  const selected = settings.gridCompany;
+  const options = [`<option value="" ${selected ? '' : 'selected'}>Not selected – national tariffs only</option>`];
+  if (selected && !companies.some((c) => c.id === selected)) {
+    options.push(`<option value="${esc(selected)}" selected>${esc(selected)}</option>`);
+  }
+  for (const c of companies) {
+    options.push(`<option value="${esc(c.id)}" ${c.id === selected ? 'selected' : ''}>${esc(c.name)}</option>`);
+  }
+  if (!companies.length) options.push('<option disabled>Loading grid companies…</option>');
+  return options.join('');
 }

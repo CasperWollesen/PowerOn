@@ -3,22 +3,6 @@
 
 export const LEVELS = ['cheap', 'normal', 'expensive'];
 
-export const VAT_RATE = 0.25;
-
-/**
- * Turn raw spot prices into the price the user actually pays per kWh:
- * (spot + tariffs/taxes) × VAT. The raw spot price is kept as `spot`.
- * Since the transform is linear, cheap/expensive levels are unaffected.
- */
-export function applyPriceModel(hours, { includeVat = true, extraPerKwh = 0 } = {}) {
-  const factor = includeVat ? 1 + VAT_RATE : 1;
-  const extra = Number.isFinite(extraPerKwh) ? extraPerKwh : 0;
-  return hours.map((h) => {
-    const spot = h.spot ?? h.price;
-    return { ...h, spot, price: (spot + extra) * factor };
-  });
-}
-
 // Below this spread (max − min in kr./kWh) a day is considered flat and every
 // hour is "normal". Avoids colouring trivial differences as cheap/expensive.
 const MIN_SPREAD = 0.4;
@@ -138,4 +122,29 @@ export function periodAt(periodList, hour) {
  */
 export function actionableHours(classifiedHours, { nowHour = null } = {}) {
   return classifiedHours.filter((h) => h.inWindow && (nowHour === null || h.hour >= nowHour));
+}
+
+/**
+ * How the price compares with the cheapest and most expensive of `hours`.
+ * Returns null factors when the reference is too close to zero (or negative)
+ * for a ratio to mean anything.
+ */
+export function relativeFactors(price, hours) {
+  if (!hours.length) return { vsCheapest: null, vsPriciest: null, cheapest: null, priciest: null };
+  const s = stats(hours);
+  return {
+    cheapest: s.min,
+    priciest: s.max,
+    vsCheapest: ratio(price, s.min.price),
+    vsPriciest: ratio(price, s.max.price),
+  };
+}
+
+/**
+ * value / reference, or null when not meaningful (reference close to zero or negative).
+ * `minReference` defaults to 0,05 kr./kWh; pass a scaled value when comparing costs.
+ */
+export function ratio(value, reference, minReference = 0.05) {
+  if (!Number.isFinite(value) || !Number.isFinite(reference) || reference < minReference || value < 0) return null;
+  return value / reference;
 }

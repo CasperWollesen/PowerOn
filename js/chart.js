@@ -13,7 +13,7 @@ import { formatHour } from './time.js';
  * @param {number|null} opts.nowHour  current hour if the chart shows today, else null
  * @param {function} [opts.onSelect]  called with the hour object when a bar is tapped
  */
-export function renderChart(container, { hours, max, nowHour = null, onSelect }) {
+export function renderChart(container, { hours, max, nowHour = null, onSelect, showAddOn = false }) {
   const ticks = gridTicks(max);
   const byHour = new Map(hours.map((h) => [h.hour, h]));
 
@@ -41,7 +41,14 @@ export function renderChart(container, { hours, max, nowHour = null, onSelect })
       .filter(Boolean)
       .join(' ');
     const label = `${formatHour(hour)} · ${num(h.price)} kr./kWh`;
-    return `<button type="button" class="${classes}" data-hour="${hour}" aria-label="${esc(label)}" style="--h:${pct}%"><span class="bar-fill"></span></button>`;
+    // Share of the bar that is tariffs, tax and VAT (the rest is spot incl. its VAT).
+    let addOn = '';
+    if (showAddOn && h.spot !== undefined && h.price > 0) {
+      const spotPart = Math.max(0, h.spot) * 1.25;
+      const share = Math.max(0, Math.min(1, 1 - spotPart / h.price));
+      addOn = `<span class="bar-addon" style="--a:${share * 100}%"></span>`;
+    }
+    return `<button type="button" class="${classes}" data-hour="${hour}" aria-label="${esc(label)}" style="--h:${pct}%"><span class="bar-fill">${addOn}</span></button>`;
   }).join('');
 
   const axisHtml = [0, 6, 12, 18, 24]

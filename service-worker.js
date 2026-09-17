@@ -4,24 +4,34 @@
 //
 // Bump CACHE_VERSION whenever app files change, so clients pick up the update.
 
-const CACHE_VERSION = 'poweron-v2';
+const CACHE_VERSION = 'poweron-v3';
 
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.json',
   './css/styles.css',
-  './js/app.js',
   './js/api.js',
+  './js/app.js',
   './js/appliances.js',
   './js/chart.js',
   './js/dashboard.js',
+  './js/day-view.js',
+  './js/forecast.js',
   './js/format.js',
+  './js/history-view.js',
+  './js/holidays.js',
+  './js/install.js',
+  './js/outlook-view.js',
   './js/prices.js',
-  './js/settings.js',
   './js/settings-view.js',
+  './js/settings.js',
+  './js/stats.js',
   './js/storage.js',
+  './js/tariffs.js',
   './js/time.js',
+  './js/ui.js',
+  './js/weather.js',
   './icons/icon.svg',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -54,9 +64,15 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return; // let API calls pass through untouched
 
-  // Network first for our own files (so updates arrive promptly), cache as fallback.
+  // Network first for our own files, revalidated with the server (so updates arrive
+  // promptly despite HTTP caching), cache as fallback when offline.
+  // Navigation requests cannot be cloned with options, so rebuild them from the URL.
+  const networkRequest =
+    request.mode === 'navigate'
+      ? new Request(request.url, { cache: 'no-cache', credentials: 'same-origin' })
+      : new Request(request, { cache: 'no-cache' });
   event.respondWith(
-    fetch(request)
+    fetch(networkRequest)
       .then((response) => {
         if (response.ok) {
           const copy = response.clone();

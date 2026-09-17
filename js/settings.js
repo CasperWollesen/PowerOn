@@ -21,13 +21,35 @@ export const DEFAULT_SETTINGS = Object.freeze({
   dayStart: '06:00',     // start of the hours the user cares about
   dayEnd: '22:00',       // end (exclusive) of the hours the user cares about
   priceArea: 'DK1',
-  includeVat: true,      // show prices incl. 25 % VAT
-  extraPerKwh: 0,        // tariffs & taxes per kWh excl. VAT, added to the spot price
+  priceMode: 'full',     // 'full' = spot + tariffs + taxes + VAT, 'spot' = raw spot price
+  gridCompany: '',       // stromligning.dk supplier id of the grid company ('' = national tariffs only)
+  supplierSurcharge: 0,  // electricity supplier's surcharge per kWh, excl. VAT
+  viewMode: 'full',      // 'simple' | 'full' | 'nerd'
 });
 
+export const VIEW_MODES = [
+  { id: 'simple', label: 'Simple' },
+  { id: 'full', label: 'Full' },
+  { id: 'nerd', label: 'Nerd' },
+];
+
+export const PRICE_MODES = [
+  { id: 'full', label: 'Full price' },
+  { id: 'spot', label: 'Spot only' },
+];
+
 export function loadSettings() {
-  const stored = load(KEY, {});
+  const stored = migrate(load(KEY, {}) ?? {});
   return sanitize({ ...DEFAULT_SETTINGS, ...stored });
+}
+
+/** Map settings from older versions onto the current shape. */
+function migrate(stored) {
+  const s = { ...stored };
+  if (s.extraPerKwh !== undefined && s.supplierSurcharge === undefined) s.supplierSurcharge = s.extraPerKwh;
+  delete s.extraPerKwh;
+  delete s.includeVat;
+  return s;
 }
 
 export function saveSettings(settings) {
@@ -44,9 +66,13 @@ function sanitize(s) {
   out.chartMax = Number.isFinite(max) && max > 0 ? max : DEFAULT_SETTINGS.chartMax;
   if (!isTimeString(out.dayStart)) out.dayStart = DEFAULT_SETTINGS.dayStart;
   if (!isTimeString(out.dayEnd)) out.dayEnd = DEFAULT_SETTINGS.dayEnd;
-  out.includeVat = out.includeVat !== false;
-  const extra = Number(out.extraPerKwh);
-  out.extraPerKwh = Number.isFinite(extra) && extra >= 0 ? extra : 0;
+  if (!PRICE_MODES.some((m) => m.id === out.priceMode)) out.priceMode = DEFAULT_SETTINGS.priceMode;
+  if (!VIEW_MODES.some((m) => m.id === out.viewMode)) out.viewMode = DEFAULT_SETTINGS.viewMode;
+  out.gridCompany = typeof out.gridCompany === 'string' ? out.gridCompany : '';
+  const surcharge = Number(out.supplierSurcharge);
+  out.supplierSurcharge = Number.isFinite(surcharge) && surcharge >= 0 ? surcharge : 0;
+  delete out.includeVat;
+  delete out.extraPerKwh;
   return out;
 }
 
@@ -60,13 +86,12 @@ function isTimeString(v) {
  * "00:00"–"00:00" is treated as the whole day.
  */
 export function dayWindow(settings) {
-  const [sh, sm] = settings.dayStart.split(':').map(Number);
+  const [sh] = settings.dayStart.split(':').map(Number);
   const [eh, em] = settings.dayEnd.split(':').map(Number);
-  let start = sh;
+  const start = sh;
   let end = em > 0 ? eh + 1 : eh;
   if (end === 0) end = 24;
   if (end <= start) return { start: 0, end: 24 };
-  void sm;
   return { start, end: Math.min(end, 24) };
 }
 
