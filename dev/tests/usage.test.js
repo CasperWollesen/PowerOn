@@ -169,5 +169,7 @@ test('USE-06', 'day rows unfold into a chart limited to the day window', () => {
     loadedFrom: '2026-09-01', loadedTo: '2026-09-01' }, settings: { priceMode: 'spot', dayStart: '08:00', dayEnd: '20:00' }, now: { date: '2026-09-03' } }).html;
   expect(html).toContain('data-usage-day="2026-09-01"');
   expect(html.split('class="usage-hour ').length - 1).toBe(12);
+  expect(html).toContain('08:00 · used 1 kWh · no price published');
+  expect(html).toContain('Select an hour');
   expect(html).toContain('08–20: 12 kWh');
 });

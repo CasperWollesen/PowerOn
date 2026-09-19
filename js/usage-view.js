@@ -7,6 +7,7 @@ import { analyseUsage, analyseDays, analyseHours } from './usage.js';
 
 // Days the user has unfolded, kept here so background renders do not fold them.
 const openDays = new Set();
+const selectedHours = new Map(); // date → index of the selected column
 
 // @req USE-04
 export function renderUsageView(model) {
@@ -32,8 +33,9 @@ export function renderUsageView(model) {
       const hours = settings.dayStart && settings.dayEnd ? dayWindow(settings) : { start: 6, end: 22 };
       const rows = analyseDays(u.intervals, prices, edges, days).map((d, i) => ({ ...d,
         hours: analyseHours(u.intervals, prices, edges, days[i].from, days[i].to).filter((h) => h.hour >= hours.start && h.hour < hours.end) }));
-      const chart = { max: settings.chartMax > 0 ? settings.chartMax : 10, edges, window: hours,
-        kwhMax: Math.max(0.1, ...rows.flatMap((d) => d.hours.map((h) => h.kwh))) };
+      const chart = { edges, window: hours,
+        kwhMax: Math.max(0.1, ...rows.flatMap((d) => d.hours.map((h) => h.kwh))),
+        costMax: Math.max(0.1, ...rows.flatMap((d) => d.hours.map((h) => h.cost))) };
       content = summary(report, approximate, settings, rows, chart);
     } catch {
       content = '<section class="card state" role="alert"><h2>Data could not be matched safely</h2><p>Invalid or overlapping intervals were received. Reload the period to retry.</p></section>';
@@ -74,6 +76,13 @@ export function renderUsageView(model) {
       container.querySelector('[data-usage-retry]')?.addEventListener('click', model.onUsageLoad);
       container.querySelectorAll('[data-usage-day]').forEach((d) => d.addEventListener('toggle', () => {
         if (d.open) openDays.add(d.dataset.usageDay); else openDays.delete(d.dataset.usageDay);
+      }));
+      container.querySelectorAll('[data-usage-hours]').forEach((hours) => hours.addEventListener('click', (event) => {
+        const column = event.target.closest('.usage-hour');
+        if (!column) return;
+        selectedHours.set(hours.dataset.usageHours, Number(column.dataset.index));
+        hours.querySelectorAll('.usage-hour').forEach((c) => c.setAttribute('aria-pressed', String(c === column)));
+        hours.parentElement.querySelector('[data-usage-readout]').textContent = column.dataset.detail;
       }));
     },
   };
@@ -139,22 +148,25 @@ function hourChart(d, chart, range) {
   const cost = d.hours.reduce((s, h) => s + h.cost, 0);
   const paid = priced > 0.000001 ? cost / priced : null;
   const band = paid === null ? null : bandFor(paid, chart.edges);
-  const columns = d.hours.map((h) => {
-    const price = h.price === null ? 0 : Math.max(0, Math.min(h.price, chart.max)) / chart.max * 100;
+  const selected = selectedHours.get(d.date);
+  const details = d.hours.map((h) => {
     const hour = String(h.hour).padStart(2, '0');
-    const label = `${hour}:00 · ${h.price === null ? 'no price' : `${num(h.price)} kr./kWh · ${bandLabel(h.band)}`} · ${kwh(h.kwh)}`;
-    return `<div class="usage-hour ${h.band ? `band-${esc(h.band)}` : ''}${h.price > chart.max ? ' over-max' : ''}" title="${esc(label)}" aria-label="${esc(label)}" role="img">
-      <div class="usage-hour-price"><span style="height:${esc(price)}%"></span></div>
-      <div class="usage-hour-label">${esc(hour)}</div>
-      <div class="usage-hour-kwh"><span style="height:${esc(Math.min(100, h.kwh / chart.kwhMax * 100))}%"></span></div>
-      <div class="usage-hour-value">${esc(num(h.kwh, 1))}</div>
-    </div>`;
-  }).join('');
+    return `${hour}:00 · used ${kwh(h.kwh)} · ${h.price === null ? 'no price published' :
+      `cost ${kr(h.cost)} · ${num(h.price)} kr./kWh · ${bandLabel(h.band)}`}`;
+  });
+  const columns = d.hours.map((h, i) => `<button type="button" class="usage-hour ${h.band ? `band-${esc(h.band)}` : ''}" data-index="${i}" data-detail="${esc(details[i])}" aria-label="${esc(details[i])}" aria-pressed="${i === selected}">
+      <span class="usage-hour-value">${h.price === null ? '–' : esc(num(h.cost, 1))}</span>
+      <span class="usage-hour-price"><span style="height:${esc(Math.max(0, Math.min(100, h.cost / chart.costMax * 100)))}%"></span></span>
+      <span class="usage-hour-label">${esc(String(h.hour).padStart(2, '0'))}</span>
+      <span class="usage-hour-kwh"><span style="height:${esc(Math.min(100, h.kwh / chart.kwhMax * 100))}%"></span></span>
+      <span class="usage-hour-value">${esc(num(h.kwh, 1))}</span>
+    </button>`).join('');
   return `<div class="usage-chart">
     <p class="${band ? `band-${esc(band)}` : ''}"><strong class="usage-paid">${paid === null ? 'No prices' : `${esc(bandLabel(band))} day · ${esc(num(paid))} kr./kWh paid on average`}</strong></p>
     <p class="muted">${esc(range)}: ${esc(kwh(used))}${priced > 0 ? ` · ${esc(kr(cost))}` : ''}</p>
-    <p class="usage-chart-caption muted">Price · fixed 0–${esc(num(chart.max, 0))} kr./kWh</p>
-    <div class="usage-hours ${d.hours.length > 18 ? 'dense' : ''}" style="--n:${d.hours.length}">${columns}</div>
-    <p class="usage-chart-caption muted">Your use per hour · kWh · same scale for every day (top = ${esc(num(chart.kwhMax, 1))} kWh)</p>
+    <p class="usage-chart-caption muted">▲ What each hour cost · kr. · same scale for every day (top = ${esc(kr(chart.costMax))})</p>
+    <div class="usage-hours ${d.hours.length > 18 ? 'dense' : ''}" style="--n:${d.hours.length}" data-usage-hours="${esc(d.date)}">${columns}</div>
+    <p class="usage-chart-caption muted">▼ What each hour used · kWh · same scale for every day (top = ${esc(kwh(chart.kwhMax))})</p>
+    <p class="usage-readout" data-usage-readout role="status">${selected !== undefined && details[selected] ? esc(details[selected]) : 'Select an hour to see its consumption, cost and price.'}</p>
   </div>`;
 }

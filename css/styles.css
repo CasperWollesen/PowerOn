@@ -957,12 +957,14 @@ h3 { font-size: 0.9rem; font-weight: 600; margin: 14px 0 6px; }
 .usage-paid { color: var(--band, var(--text)); }
 .usage-chart-caption { font-size: 0.75rem; margin: 8px 0 4px; }
 .usage-hours { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 3px; }
-.usage-hour { display: grid; grid-template-rows: 90px auto 60px auto; min-width: 0; text-align: center; font-size: 0.65rem; }
-.usage-hour-price { display: flex; align-items: flex-end; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.usage-hour { display: grid; grid-template-rows: auto 80px auto 60px auto; min-width: 0; padding: 2px 0; border: 0; border-radius: 5px; background: none; color: var(--text); font: inherit; font-size: 0.65rem; text-align: center; cursor: pointer; }
+.usage-hour[aria-pressed="true"] { background: var(--surface); outline: 2px solid var(--band, var(--muted)); }
+.usage-readout { margin-top: 10px; padding: 9px 10px; border-radius: 8px; background: var(--surface); font-size: 0.9rem; font-weight: 600; }
+.usage-hour-price { display: flex; align-items: flex-end; border-bottom: 1px solid var(--border); }
 .usage-hour-kwh { display: flex; align-items: flex-start; }
-.usage-hour-price span, .usage-hour-kwh span { display: block; width: 100%; min-height: 2px; background: var(--band, var(--muted)); }
+.usage-hour-price span, .usage-hour-kwh span { display: block; width: 100%; background: var(--band, var(--muted)); }
+.usage-hour-kwh span { min-height: 2px; }
 .usage-hour-price span { border-radius: 3px 3px 0 0; }
 .usage-hour-kwh span { border-radius: 0 0 3px 3px; opacity: 0.75; }
-.usage-hour.over-max .usage-hour-price span { border-top: 3px dashed var(--text); }
 .usage-hour-label { color: var(--muted); padding: 2px 0; }
 .usage-hours.dense .usage-hour-value, .usage-hours.dense .usage-hour:nth-child(even) .usage-hour-label { visibility: hidden; }
