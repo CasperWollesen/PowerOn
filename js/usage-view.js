@@ -1,8 +1,8 @@
 import { esc, num, kwh, kr } from './format.js';
-import { addDays, danishMidnight } from './time.js';
+import { addDays, danishMidnight, shortDate, weekdayName } from './time.js';
 import { bandEdges } from './bands.js';
 import { priceHours } from './tariffs.js';
-import { analyseUsage } from './usage.js';
+import { analyseUsage, analyseDays } from './usage.js';
 
 // @req USE-04
 export function renderUsageView(model) {
@@ -20,7 +20,11 @@ export function renderUsageView(model) {
         return result.hours.filter((h) => h.start && h.end);
       });
       const report = analyseUsage(u.intervals, prices, bandEdges(settings), danishMidnight(u.loadedFrom), danishMidnight(addDays(u.loadedTo, 1)));
-      content = summary(report, approximate, settings);
+      const days = [];
+      for (let date = u.loadedTo; date >= u.loadedFrom; date = addDays(date, -1)) {
+        days.push({ date, from: danishMidnight(date), to: danishMidnight(addDays(date, 1)) });
+      }
+      content = summary(report, approximate, settings, analyseDays(u.intervals, prices, bandEdges(settings), days));
     } catch {
       content = '<section class="card state" role="alert"><h2>Data could not be matched safely</h2><p>Invalid or overlapping intervals were received. Reload the period to retry.</p></section>';
     }
@@ -63,7 +67,7 @@ export function renderUsageView(model) {
 }
 
 // @req USE-02 USE-03 USE-04
-function summary(r, approximate, settings) {
+function summary(r, approximate, settings, days) {
   const noPrices = r.total > 0 && r.priced === 0;
   const partialPrices = r.unpriced > 0.000001;
   return `<section class="card usage-highlight ${r.bands.find((b) => b.id === 'extreme').kwh > 0 ? 'band-extreme' : 'band-expensive'}">
@@ -91,10 +95,24 @@ function summary(r, approximate, settings) {
     <p class="muted">Based on the lowest 10% of measured power, weighted by duration and capped at each reading. This is a rough floor, not measured standby or guaranteed savings. Heating, appliances and solar can affect it.</p>` :
     '<p class="muted">Needs at least seven complete days of measured readings, without gaps or estimates. A base-load estimate is not meaningful for this selection.</p>'}
   </section>
+  ${daily(days)}
   <section class="card"><h2>About these numbers</h2><p class="muted">${settings.priceMode === 'spot' ? 'Spot costs exclude tariffs, taxes, supplier surcharge and VAT.' :
     'Full-price estimates use your current grid company and supplier surcharge, plus the existing hourly tariff model. Subscription fees are excluded.'}
     ${approximate ? 'Some historical tariffs are missing: nearest stored tariffs or national defaults are used, which can also change the assigned bands.' : ''}
     ${r.split ? 'Consumption spanning price intervals is split assuming uniform use within the reading.' : ''} These figures are not an electricity bill.</p>
     ${settings.viewMode === 'nerd' ? `<p class="muted">Covered: ${esc(num(r.coveredMs / 3600000, 2))} hours. Significant means at least 20% of reported kWh in Expensive or Extreme.</p>` : ''}
+  </section>`;
+}
+
+// @req USE-05
+function daily(days) {
+  return `<section class="card"><h2>Daily breakdown</h2>
+    <p class="muted">Newest first · Danish days · only the price bands you actually used.</p>
+    <div class="usage-days">${days.map((d) => `<div class="usage-day">
+      <div class="usage-band-head"><strong>${esc(weekdayName(d.date))} ${esc(shortDate(d.date))}</strong>
+        <strong>${d.total > 0 ? `${esc(kwh(d.total))} · ${d.priced > 0 ? esc(kr(d.cost)) : 'no prices'}` : 'No readings'}</strong></div>
+      ${d.bands.map((b) => `<div class="usage-day-band band-${esc(b.id)}"><span>${esc(b.icon)} ${esc(b.label)}</span><span>${esc(kwh(b.kwh))}</span><span>${esc(kr(b.cost))}</span></div>`).join('')}
+      ${d.unpriced > 0.000001 ? `<div class="usage-day-band"><span>Unpriced</span><span>${esc(kwh(d.unpriced))}</span><span>–</span></div>` : ''}
+    </div>`).join('')}</div>
   </section>`;
 }

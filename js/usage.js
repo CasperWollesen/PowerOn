@@ -60,3 +60,13 @@ export function analyseUsage(readings, priceRows, edges, from, to) {
     coverage: coveredMs / (to - from) * 100, estimatedKwh, estimatedMs, split, base,
     highKwh, highShare, highCost: high.reduce((s, b) => s + b.cost, 0), significant: highShare >= 20 };
 }
+
+// @req USE-05
+export function analyseDays(readings, priceRows, edges, days) {
+  return days.map(({ date, from, to }) => {
+    const inDay = (row) => Date.parse(row.end) > from && Date.parse(row.start) < to;
+    const r = analyseUsage(readings.filter(inDay), priceRows.filter(inDay), edges, from, to);
+    return { date, total: r.total, cost: r.cost, priced: r.priced, unpriced: r.unpriced,
+      bands: r.bands.filter((b) => b.kwh > 0.0000001) };
+  });
+}

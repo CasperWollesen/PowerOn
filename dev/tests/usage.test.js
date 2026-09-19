@@ -1,5 +1,5 @@
 import { test, expect } from './harness.js';
-import { analyseUsage } from '../../js/usage.js';
+import { analyseUsage, analyseDays } from '../../js/usage.js';
 import { danishMidnight, addDays } from '../../js/time.js';
 import { applyPriceModel } from '../../js/tariffs.js';
 import { bandEdges } from '../../js/bands.js';
@@ -133,4 +133,16 @@ test('USE-01', 'diagnostics show safe actionable codes, never upstream text or u
   expect(consumptionError(502, { code: 'TOKEN_REJECTED', apiCode: 50001 })).toContain('invalid or inactive');
   expect(consumptionError(502, { code: 'TOKEN_NETWORK', cause: 'timeout' })).toContain('[TOKEN_NETWORK:timeout]');
   expect(consumptionError(502, { code: 'TOKEN_NETWORK', cause: 'synthetic-private' })).toContain('[TOKEN_NETWORK]');
+});
+
+test('USE-05', 'daily breakdown splits by day and lists only the bands that were used', () => {
+  const day = 24 * 3600000;
+  const days = analyseDays([reading(1, 2), reading(2, 3), reading(25, 4)], [price(1, 0.2), price(2, 3), price(25, 3)], edges,
+    [{ date: '2026-09-02', from: start + day, to: start + 2 * day }, { date: '2026-09-01', from: start, to: start + day },
+      { date: '2026-08-31', from: start - day, to: start }]);
+  expect(days.map((d) => d.total)).toEqual([4, 5, 0]);
+  expect(days[0].bands.map((b) => b.id)).toEqual(['expensive']);
+  expect(days[1].bands.map((b) => b.kwh)).toEqual([2, 3]);
+  expect(days[1].cost).toBeCloseTo(9.4);
+  expect(days[2].bands).toEqual([]);
 });

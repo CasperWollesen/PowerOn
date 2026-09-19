@@ -57,3 +57,13 @@ Use the existing band colours, names, Danish number formatting and responsive ca
 Lead with the combined Expensive/Extreme kWh, share and cost; prominently mark a
 share of at least 20% as significant. Always show both bands separately too.
 Simple mode retains all requested totals and band cards; Nerd adds coverage detail.
+
+### USE-05 · Daily breakdown
+**Status:** Implemented · **Priority:** Should · **Verify:** test
+
+After the base consumption estimate, list every Danish day of the loaded period,
+newest first, with that day's reported kWh and cost. Under each day show only the
+bands in which electricity was actually used, each with its kWh and cost. Days
+follow Danish midnight, so they can hold 23 or 25 hours. Days without readings are
+labelled as such; unpriced kWh is shown separately and never priced at zero. The
+same price settings, bands and estimate caveats as USE-02 apply.
