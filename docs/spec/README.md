@@ -15,6 +15,7 @@ when behaviour changes, the spec changes in the same commit.
 | [day-view.md](day-view.md) | `DAY` | Today and Tomorrow |
 | [appliances.md](appliances.md) | `APPL` | Appliance model and costs |
 | [outlook.md](outlook.md) | `OUT` | Forecast model and Outlook tab |
+| [usage.md](usage.md) | `USE` | Private consumption and Usage History |
 | [history.md](history.md) | `HIST` | History tab |
 | [settings.md](settings.md) | `SET` | Settings and persistence |
 | [views.md](views.md) | `VIEW` | Simple / Full / Nerd |

@@ -67,6 +67,16 @@ desktop.
 - [ ] Airplane mode still shows the last loaded data.
 - [ ] Install banner appears on iOS Safari and leads to a working home screen icon.
 
+**Usage History**
+- Open `dev/usage-preview.html` for explicitly synthetic ready/loading/error/empty/
+  partial states at 360 px and desktop widths, light and dark.
+- Connect a configured Worker, verify a completed day's kWh against Eloverblik.
+- Check all five band costs and shares, unpriced kWh, and high-price emphasis.
+- Change price mode, area, grid company and thresholds; loaded usage must follow.
+- Disconnect during a request: late results must not restore readings or the key.
+- Inspect browser storage: no usage readings or app key should be persisted.
+- Account setup and real-meter validation follow [the guide](eloverblik-setup.md).
+
 ## Ground truth
 
 - Full price: `https://stromligning.dk/api/Prices?priceArea=DK1&supplierId=<grid>&from=<date>T00:00:00&to=<date>T23:45:00`

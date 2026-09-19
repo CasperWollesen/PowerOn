@@ -7,7 +7,9 @@ DK1 (and DK2) price area: today's and tomorrow's prices, the cheapest hours in
 your day window, what each of your appliances costs to run, an outlook for the
 coming days estimated from the weather forecast, and a history of past days.
 
-Plain HTML, CSS and JavaScript (ES modules). No build step, no backend.
+Plain HTML, CSS and JavaScript (ES modules). No build step. Public prices need no
+backend; optional **Usage History** uses a private Cloudflare Worker for Eloverblik.
+See the [connection guide](docs/eloverblik-setup.md).
 
 Live: <https://casperwollesen.github.io/PowerOn/>
 
@@ -153,8 +155,10 @@ range widens with each day. The Nerd view shows live validation numbers.
 
 ## Storage
 
-Everything lives in `localStorage` on the device: settings, appliances, about
-400 days of spot prices, tariffs for ~45 days and weather. 100 days take ~110 KB.
+Public data lives in `localStorage` on the device: settings, appliances, about
+400 days of spot prices, tariffs for ~45 days and weather. Spot intervals retain
+absolute timestamps for matching consumption. Personal usage and the private app
+key stay in memory only; Eloverblik credentials stay in Cloudflare secrets.
 
 ## Local development
 

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Usage History · synthetic UI fixture</title>
+<link rel="stylesheet" href="../css/styles.css">
+<main class="app">
+  <section class="card"><h1>Synthetic test fixture</h1><p>Invented readings and prices for layout verification only. This is not personal consumption.</p>
+    <button class="btn" id="theme">Toggle theme</button>
+    <label>State <select id="state"><option>ready</option><option>loading</option><option>error</option><option>empty</option><option>partial</option></select></label>
+  </section>
+  <div id="fixture" style="display:contents"></div>
+</main>
+<script type="module">
+  import { renderUsageView } from '../js/usage-view.js';
+  import { danishMidnight, addDays, nowInDenmark } from '../js/time.js';
+  const start = danishMidnight('2026-09-01');
+  const intervals = [], spots = {};
+  for (let i = 0; i < 168; i++) {
+    const at = start + i * 3600000;
+    const stamp = { start: new Date(at).toISOString(), end: new Date(at + 3600000).toISOString() };
+    const local = nowInDenmark(new Date(at));
+    intervals.push({ ...stamp, kwh: local.hour >= 17 && local.hour < 21 ? 1.3 : 0.15, estimated: false });
+    (spots[local.date] ??= []).push({ ...stamp, hour: local.hour, price: [-0.1, 0.4, 0.8, 1.5, 2.5][local.hour % 5] });
+  }
+  const u = { status: 'ready', connected: true, key: '', url: '', from: '2026-09-01', to: '2026-09-07',
+    loadedFrom: '2026-09-01', loadedTo: '2026-09-07', intervals, spots };
+  const model = { usage: u, settings: { priceMode: 'spot', priceArea: 'DK1', viewMode: 'nerd' }, now: { date: '2026-09-19' },
+    onUsageDraft: (patch) => Object.assign(u, patch), onUsageLoad: () => draw(), onUsagePreset: (days) => {
+      u.from = addDays(model.now.date, -days); u.to = addDays(model.now.date, -1); draw();
+    }, onUsageDisconnect: () => { u.connected = false; u.status = 'idle'; draw(); }, onUsageConnect: () => { u.connected = true; u.status = 'ready'; draw(); } };
+  function draw() { const view = renderUsageView(model); document.querySelector('#fixture').innerHTML = view.html; view.mount(document.querySelector('#fixture')); }
+  document.querySelector('#theme').onclick = () => { document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'; };
+  document.querySelector('#state').onchange = (event) => {
+    const selected = event.target.value;
+    u.status = ['empty', 'partial'].includes(selected) ? 'ready' : selected;
+    u.intervals = selected === 'empty' ? [] : selected === 'partial' ? intervals.slice(0, 90) : intervals;
+    u.spots = selected === 'partial' ? {} : spots;
+    u.message = 'Synthetic connection error. Retry when the Worker is available.';
+    draw();
+  };
+  draw();
+</script>
+</html>

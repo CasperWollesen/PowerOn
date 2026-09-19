@@ -5,7 +5,8 @@ the first edit; it takes two minutes and prevents most mistakes.
 
 PowerOn is a personal progressive web app that answers "when should I use power?"
 for Danish electricity prices. Plain HTML, CSS and ES modules on GitHub Pages.
-**No build step, no backend, no frameworks, no npm.**
+**No build step, no frameworks, no npm.** Public price features need no backend;
+optional private Usage History uses `worker/worker.js` on Cloudflare (decision 0009).
 
 ## Ground rules
 
@@ -31,6 +32,9 @@ for Danish electricity prices. Plain HTML, CSS and ES modules on GitHub Pages.
 9. **Never invent price data.** Real prices for published days; anything else is
    labelled an estimate with its uncertainty.
 10. **Do not add a dependency** without a decision record in `docs/decisions/`.
+11. **Keep private usage private.** Worker credentials and meter IDs belong in
+    Cloudflare secrets. Never commit real tokens, app keys, account email addresses
+    or consumption fixtures. Browser keys and consumption remain memory-only.
 
 ## The loop for a change
 

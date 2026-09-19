@@ -3,8 +3,9 @@
 ### NFR-01 · Plain web, no build
 **Status:** Implemented · **Priority:** Must · **Verify:** check
 
-Plain HTML, CSS and ES modules. No framework, no bundler, no transpiler, no
-backend. The repository is deployable as-is on GitHub Pages, so every path is
+Plain HTML, CSS and ES modules. No framework, no bundler, no transpiler. Public
+price features need no backend. Personal consumption optionally uses the separately
+deployed Cloudflare Worker described in USE-01. The frontend is deployable as-is on GitHub Pages, so every path is
 relative and every file referenced from `index.html` exists.
 
 ### NFR-02 · Language and formatting
@@ -29,14 +30,17 @@ and tables.
 ### NFR-05 · Storage and privacy
 **Status:** Implemented · **Priority:** Must · **Verify:** review
 
-All data stays on the device in `localStorage` behind a defensive wrapper that
-never throws. No account, no analytics, no personal data in requests. Roughly
-110 KB for 100 days of history.
+Public price data and settings stay on the device in `localStorage` behind a
+defensive wrapper that never throws. No analytics. Roughly 110 KB for the legacy
+100-day price cache; timestamped intervals increase this while retention stays
+bounded. Optional personal consumption travels via an authenticated Worker and
+stays in browser memory, never localStorage or the service-worker cache (USE-01).
 
 ### NFR-06 · Module boundaries
 **Status:** Implemented · **Priority:** Must · **Verify:** review
 
-- Network only in `api.js`, `tariffs.js`, `weather.js`.
+- Frontend network only in `api.js`, `tariffs.js`, `weather.js`.
+- The separately deployed `worker/worker.js` calls Eloverblik server-side.
 - Pure logic (`prices.js`, `stats.js`, `forecast.js`, `holidays.js`, appliance and
   price calculations) without DOM or storage access, so it can be unit tested.
 - Views return HTML strings plus a `mount()` that attaches events.

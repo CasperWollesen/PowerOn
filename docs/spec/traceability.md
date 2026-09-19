@@ -97,8 +97,12 @@ Requirement → the code that implements it → the tests that verify it.
 | [SET-07](settings.md#set-07--day-window) | Day window | Implemented | manual | `js/app.js` | – |
 | [SET-08](settings.md#set-08--install-and-about) | Install and About | Implemented | manual | `js/install.js`, `js/settings-view.js` | – |
 | [SET-09](settings.md#set-09--price-bands) | Price bands | Implemented | manual | `js/settings-view.js` | – |
+| [USE-01](usage.md#use-01--private-consumption-connection) | Private consumption connection | Implemented | test | `js/api.js`, `js/app.js`, `worker/worker.js` | `usage.test.js`, `worker.test.js` |
+| [USE-02](usage.md#use-02--consumption-by-price-band) | Consumption by price band | Implemented | test | `js/app.js`, `js/time.js`, `js/usage-view.js`, `js/usage.js`, `worker/worker.js` | `usage.test.js`, `worker.test.js` |
+| [USE-03](usage.md#use-03--base-consumption-estimate) | Base consumption estimate | Implemented | test | `js/usage-view.js`, `js/usage.js` | `usage.test.js` |
+| [USE-04](usage.md#use-04--usage-history-tab) | Usage History tab | Implemented | manual | `js/app.js`, `js/usage-view.js`, `css/styles.css` | – |
 | [VIEW-01](views.md#view-01--toggle) | Toggle | Implemented | test | `js/dashboard.js`, `js/ui.js` | `ui.test.js` |
 | [VIEW-02](views.md#view-02--simple) | Simple | Implemented | manual | `js/day-view.js` | – |
 | [VIEW-03](views.md#view-03--nerd) | Nerd | Implemented | manual | `js/day-view.js` | – |
 
-94 requirements · 89 with code tags · 40 with tests.
+98 requirements · 93 with code tags · 43 with tests.

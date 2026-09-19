@@ -81,7 +81,8 @@ Bands MUST drive the colour and the wording of:
 - the hourly chart bars, whose gridlines sit at the thresholds (named in Nerd),
 - the period strip and the appliance cost chips,
 - History day rows and bars,
-- Outlook day rows and the coming-days pills.
+- Outlook day rows and the coming-days pills,
+- Usage History consumption breakdown and high-price consumption summary.
 
 The cheapest window of the day MUST stay visible in the chart even when every
 hour shares one band.

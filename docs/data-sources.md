@@ -1,6 +1,11 @@
 # Data sources
 
-Everything is called directly from the browser, so every source must send
+Personal usage is optionally fetched from the Eloverblik Customer API through a
+private Cloudflare Worker. See [architecture and setup](eloverblik-setup.md) and
+[decision 0009](decisions/0009-private-usage-worker.md). No Eloverblik token or
+meter identity is included in public browser requests or committed configuration.
+
+Public price and weather sources are called directly from the browser and must send
 permissive CORS headers. Findings below were verified on the dates given.
 
 ## Spot prices — elprisenligenu.dk

@@ -1,7 +1,9 @@
 # Architecture
 
 PowerOn is a static site: `index.html` loads `js/app.js` as an ES module, and
-everything happens in the browser. No build step, no backend.
+public price features run in the browser without a build step. An optional
+Cloudflare Worker protects personal Eloverblik usage data; see
+[the setup guide](eloverblik-setup.md) and decision 0009.
 
 ## Layers
 
@@ -68,7 +70,7 @@ and rolls over at midnight. `visibilitychange` refreshes what is stale.
 {
   settings, appliances,
   view: 'dashboard' | 'settings',
-  selectedTab: 'history' | 'today' | 'tomorrow' | 'outlook',
+  selectedTab: 'history' | 'today' | 'tomorrow' | 'outlook' | 'usage',
   now: { date, hour, minute },              // Danish wall clock
   days: { today: DayState, tomorrow: DayState },
   insights: { status, progress, message },  // background loading
@@ -88,7 +90,7 @@ All keys are prefixed `poweron.` in `localStorage`.
 |---|---|---|
 | `settings` | User settings | forever |
 | `appliances` | Appliance list | forever |
-| `spot.<area>.<date>` | One day of spot prices, compact | 400 days |
+| `spot.<area>.<date>` | One day of spot prices, compact with absolute intervals | 400 days |
 | `tariffs.<area>.<grid>.<date>` | Hourly tariff parts | 45 days |
 | `grid.companies` | Grid company list | 7 days |
 | `weather.daily` | Daily weather features | 400 days |
@@ -104,4 +106,12 @@ Band thresholds live inside `settings` (`bands.full` and `bands.spot`).
   and `parts`.
 - Price bands are strings (`free`, `cheap`, `fair`, `expensive`, `extreme`) used
   both as CSS classes (`band-fair`) and labels; `js/bands.js` owns them.
-- Time is Danish wall clock everywhere; `time.js` is the only place that converts.
+- Time is Danish wall clock everywhere; `time.js` converts absolute instants for
+  the frontend. Usage joins UTC intervals to retain DST identity.
+- `usage.js` is pure aggregation; `usage-view.js` returns HTML and mount.
+  `app.js` loads the private Worker through `api.js`, then public spot and tariff
+  data with three concurrent days. Request generations prevent stale results.
+- `worker/worker.js` is separately deployed and contains server-side Eloverblik
+  network calls. Browser network boundaries remain unchanged. No Worker secrets
+  are shipped in frontend configuration. Usage credentials and readings are
+  memory-only; only `poweron.ui.usageWorkerUrl` is persisted.

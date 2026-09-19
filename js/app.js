@@ -1,13 +1,15 @@
 // App bootstrap: state, routing between views, data loading and refresh timers.
 
-import { getDayPrices, NotPublishedError, pruneOldPrices, backfillPrices, cachedDay } from './api.js';
+import { getDayPrices, getConsumption, NotPublishedError, pruneOldPrices, backfillPrices, cachedDay } from './api.js';
 import { fetchDayTariffs, getGridCompanies, cachedGridCompanies, pruneOldTariffs } from './tariffs.js';
 import { getWeather, cachedWeather } from './weather.js';
 import { buildForecast } from './forecast.js';
 import { loadSettings, saveSettings, applyTheme, watchSystemTheme, dayWindow } from './settings.js';
 import { loadAppliances, saveAppliances, addAppliance, updateAppliance, removeAppliance, addDefaults } from './appliances.js';
-import { requestPersistentStorage } from './storage.js';
-import { nowInDenmark, addDays } from './time.js';
+import { requestPersistentStorage, load, save } from './storage.js';
+import { nowInDenmark, addDays, danishMidnight } from './time.js';
+import { analyseUsage } from './usage.js';
+import { bandEdges } from './bands.js';
 import { renderDashboard } from './dashboard.js';
 import { renderSettings } from './settings-view.js';
 import { initInstall, promptInstall, dismissBanner } from './install.js';
@@ -28,6 +30,8 @@ const state = {
   },
   insights: { status: 'idle', progress: null, message: null },
   forecast: null,
+  usage: { status: 'idle', connected: false, url: load('ui.usageWorkerUrl', ''), key: '',
+    from: addDays(nowInDenmark().date, -30), to: addDays(nowInDenmark().date, -1), intervals: [], spots: {} },
 };
 
 // ---------------------------------------------------------------------------
@@ -63,6 +67,17 @@ function render({ scrollTop = false } = {}) {
       appliances: state.appliances,
       forecast: state.forecast,
       insights: state.insights,
+      usage: state.usage,
+      onUsageDraft: (patch) => Object.assign(state.usage, patch),
+      onUsageConnect: () => loadUsage(),
+      onUsageLoad: () => loadUsage(),
+      onUsagePreset: (days) => {
+        state.usage.from = addDays(state.now.date, -days);
+        state.usage.to = addDays(state.now.date, -1);
+        if (state.usage.connected) loadUsage();
+        else render();
+      },
+      onUsageDisconnect: disconnectUsage,
       gridCompanyName: gridCompanyName(),
       onSelectTab: (tab) => {
         state.selectedTab = tab;
@@ -121,6 +136,8 @@ function handleSettingsChange(patch) {
   const areaChanged = patch.priceArea !== undefined && patch.priceArea !== before.priceArea;
   const gridChanged = patch.gridCompany !== undefined && patch.gridCompany !== before.gridCompany;
   const windowChanged = (patch.dayStart && patch.dayStart !== before.dayStart) || (patch.dayEnd && patch.dayEnd !== before.dayEnd);
+  if ((state.usage.connected || state.usage.status === 'loading') &&
+      (areaChanged || gridChanged || patch.priceMode !== undefined)) loadUsage();
 
   if (areaChanged) {
     state.forecast = null;
@@ -149,6 +166,68 @@ function handleApplianceRemove(id) {
   state.appliances = removeAppliance(state.appliances, id);
   saveAppliances(state.appliances);
   render();
+}
+
+let usageRequest = 0;
+let usageAbort = null;
+
+// @req USE-01 USE-04
+function disconnectUsage() {
+  usageRequest++;
+  usageAbort?.abort();
+  Object.assign(state.usage, { connected: false, key: '', intervals: [], spots: {},
+    status: 'idle', message: null, loadedFrom: null, loadedTo: null });
+  renderIfDashboard();
+}
+
+// @req USE-01 USE-02 USE-04
+async function loadUsage() {
+  const id = ++usageRequest;
+  usageAbort?.abort();
+  usageAbort = new AbortController();
+  const signal = usageAbort.signal;
+  const u = state.usage;
+  const { from, to, key } = u;
+  const settings = { ...state.settings };
+  const validDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s) && Number.isFinite(Date.parse(s)) && addDays(s, 0) === s;
+  try {
+    if (!validDate(from) || !validDate(to) || from > to || to >= nowInDenmark().date ||
+        (Date.parse(to) - Date.parse(from)) / 86400000 >= 92) throw new Error('Select between 1 and 92 completed days.');
+    if (!key || key.length < 43) throw new Error('Enter the private app key configured in your Worker (at least 43 characters).');
+    const url = new URL(u.url.trim());
+    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.pathname !== '/') {
+      throw new Error('Enter the HTTPS Worker origin without a path.');
+    }
+    u.url = url.origin;
+    save('ui.usageWorkerUrl', u.url);
+    Object.assign(u, { status: 'loading', message: null, intervals: [], spots: {} });
+    renderIfDashboard();
+    const data = await getConsumption(u.url, key, from, addDays(to, 1), signal);
+    if (id !== usageRequest) return;
+    // Validate readings before displaying any totals or starting public price work.
+    analyseUsage(data.intervals, [], bandEdges(settings), danishMidnight(from), danishMidnight(addDays(to, 1)));
+    u.connected = true;
+    const dates = [];
+    for (let date = from; date <= to; date = addDays(date, 1)) dates.push(date);
+    const spots = {};
+    async function loadNext() {
+      while (dates.length && id === usageRequest) {
+        const date = dates.shift();
+        const [spot] = await Promise.allSettled([
+          getDayPrices(settings.priceArea, date, { requireIntervals: true }),
+          settings.priceMode === 'full' ? fetchDayTariffs(settings.priceArea, settings.gridCompany, date) : Promise.resolve(),
+        ]);
+        if (spot.status === 'fulfilled') spots[date] = spot.value.hours;
+      }
+    }
+    if (data.intervals.length) await Promise.all(Array.from({ length: 3 }, loadNext));
+    if (id !== usageRequest) return;
+    Object.assign(u, { intervals: data.intervals, spots, status: 'ready', loadedFrom: from, loadedTo: to });
+  } catch (error) {
+    if (id !== usageRequest) return;
+    Object.assign(u, { status: 'error', message: error.message, intervals: [], spots: {} });
+  }
+  renderIfDashboard();
 }
 
 // ---------------------------------------------------------------------------

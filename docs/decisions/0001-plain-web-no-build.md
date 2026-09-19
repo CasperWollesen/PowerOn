@@ -1,6 +1,6 @@
 # 0001 · Plain HTML, CSS and JavaScript, no build step
 
-**Status:** Accepted · 2026-09-10
+**Status:** Partially superseded by [0009](0009-private-usage-worker.md) for personal usage only; accepted for public price features · 2026-09-10
 
 ## Context
 

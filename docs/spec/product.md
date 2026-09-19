@@ -26,12 +26,14 @@ dishwasher, dehumidifier, oven.
    can be compared by eye.
 6. **No invented data.** Real prices for today and tomorrow. The outlook for
    later days is clearly an estimate, with its own uncertainty and accuracy shown.
-7. **Private and offline-friendly.** Everything is stored on the device; no
-   account, no server, no analytics.
+7. **Private and offline-friendly.** Public prices remain on the device. Personal
+   usage is optional, authenticated through a private Worker, and memory-only.
+   No analytics.
 
 ## Non-goals
 
-- No backend, login, sync between devices or push notifications.
+- No backend for public price features, sync between devices or push notifications.
+  Personal Usage History is the explicit authenticated Worker exception.
 - No automation or control of appliances.
 - No trading advice, supplier comparison or contract switching.
 - No hourly forecast beyond the published day-ahead prices; the outlook is per day.
@@ -39,7 +41,7 @@ dishwasher, dehumidifier, oven.
 ## Users
 
 One primary user (the household), possibly shared with family members on their
-own phones. No roles, no permissions.
+own phones. Personal consumption requires the private app key.
 
 ## Glossary
 

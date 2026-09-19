@@ -536,6 +536,7 @@ h3 { font-size: 0.9rem; font-weight: 600; margin: 14px 0 6px; }
 
 /* Four tabs */
 .day-tabs { grid-template-columns: repeat(4, 1fr); gap: 3px; }
+.day-tabs [data-tab="usage"] { grid-column: 1 / -1; flex-direction: row; justify-content: center; gap: 8px; }
 .day-tabs button { padding: 6px 2px; font-size: 0.85rem; min-width: 0; }
 .day-tabs button small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 
@@ -920,3 +921,24 @@ h3 { font-size: 0.9rem; font-weight: 600; margin: 14px 0 6px; }
   color: var(--band);
   opacity: 0.9;
 }
+
+/* @req USE-04 */
+.usage-form { display: grid; gap: 12px; margin: 16px 0; }
+.usage-form label { display: grid; gap: 5px; font-size: 0.875rem; min-width: 0; }
+.usage-form input { width: 100%; min-width: 0; min-height: 44px; padding: 9px; border: 1px solid var(--border); border-radius: 9px; color: var(--text); background: var(--surface-2); font: inherit; }
+:root[data-theme="light"] .usage-form input { color-scheme: light; }
+:root[data-theme="dark"] .usage-form input { color-scheme: dark; }
+.usage-form a { color: var(--accent); }
+.usage-dates, .usage-totals { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.usage-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.usage-totals strong { display: block; font-size: 1.4rem; margin: 4px 0 12px; }
+.usage-highlight { border-left: 5px solid var(--band); background: var(--band-bg); }
+.usage-highlight p + p { margin-top: 9px; }
+.usage-number { font-size: 2rem; font-weight: 750; }
+.usage-number span { font-size: 0.875rem; font-weight: 400; }
+.usage-bands { display: grid; gap: 16px; margin-top: 18px; }
+.usage-band { background: var(--band-bg); border-radius: 12px; padding: 12px; }
+.usage-band-head { display: flex; justify-content: space-between; gap: 8px; }
+.usage-band-head strong { color: var(--band); }
+.usage-track { height: 8px; background: var(--surface); border-radius: 8px; overflow: hidden; margin: 9px 0; }
+.usage-track span { display: block; height: 100%; background: var(--band); }

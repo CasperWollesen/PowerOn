@@ -29,7 +29,7 @@ META_PATTERN = re.compile(
 REQ_TAG = re.compile(r'@req\s+((?:[A-Z]{3,6}-\d{2}[ ,]*)+)')
 TEST_CALL = re.compile(r"\btest\(\s*'((?:[A-Z]{3,6}-\d{2}[ ,]*)+)'")
 
-CODE_DIRS = ['js']
+CODE_DIRS = ['js', 'worker']
 CODE_FILES = ['index.html', 'service-worker.js', 'css/styles.css']
 TEST_DIR = os.path.join('dev', 'tests')
 

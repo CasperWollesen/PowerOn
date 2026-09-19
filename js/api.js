@@ -31,7 +31,7 @@ function cacheKey(area, dateStr) {
 
 /** Stored format: { d: date, a: area, t: fetchedAt, h: [[hour, price], ...] } */
 function pack(day) {
-  return { d: day.date, a: day.area, t: day.fetchedAt, h: day.hours.map((x) => [x.hour, x.price]) };
+  return { d: day.date, a: day.area, t: day.fetchedAt, h: day.hours.map((x) => [x.hour, x.price, x.start, x.end]) };
 }
 
 function unpack(stored) {
@@ -40,7 +40,7 @@ function unpack(stored) {
     date: stored.d,
     area: stored.a,
     fetchedAt: stored.t,
-    hours: stored.h.map(([hour, price]) => ({ hour, price })),
+    hours: stored.h.map(([hour, price, start, end]) => ({ hour, price, start, end })),
   };
 }
 
@@ -65,11 +65,11 @@ export function cachedDates(area) {
  * @throws {NotPublishedError} when the day is not available yet (HTTP 404)
  */
 // @req DATA-01 DATA-02 DATA-04 DATA-05
-export async function getDayPrices(area, dateStr, { preferCache = true } = {}) {
+export async function getDayPrices(area, dateStr, { preferCache = true, requireIntervals = false } = {}) {
   const cached = cachedDay(area, dateStr);
 
   // A full published day never changes – no need to refetch it.
-  if (preferCache && cached?.hours?.length >= 23) {
+  if (preferCache && cached?.hours?.length >= 23 && (!requireIntervals || cached.hours.every((h) => h.start && h.end))) {
     return { ...cached, fromCache: true };
   }
 
@@ -92,10 +92,10 @@ export async function getDayPrices(area, dateStr, { preferCache = true } = {}) {
 
 function normalizeDay(area, dateStr, raw) {
   const hours = raw
-    .map((r) => ({ hour: Number(r.time_start.slice(11, 13)), start: r.time_start, price: Number(r.DKK_per_kWh) }))
+    .map((r) => ({ hour: Number(r.time_start.slice(11, 13)), start: r.time_start, end: r.time_end, price: Number(r.DKK_per_kWh) }))
     .filter((h) => Number.isFinite(h.price))
-    .sort((a, b) => a.start.localeCompare(b.start))
-    .map(({ hour, price }) => ({ hour, price: Math.round(price * 100000) / 100000 }));
+    .sort((a, b) => Date.parse(a.start) - Date.parse(b.start))
+    .map(({ hour, price, start, end }) => ({ hour, start, end, price: Math.round(price * 100000) / 100000 }));
   return { area, date: dateStr, hours, fetchedAt: new Date().toISOString() };
 }
 
@@ -135,4 +135,21 @@ export function pruneOldPrices(todayStr, keepDays = HISTORY_KEEP_DAYS) {
     if (key.split('.').pop() < cutoff) remove(key);
   }
   for (const key of keysWithPrefix('prices.')) remove(key);
+}
+
+// @req USE-01
+export async function getConsumption(workerUrl, key, from, to, signal) {
+  const url = new URL(workerUrl);
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash ||
+      !['', '/'].includes(url.pathname)) throw new Error('Enter the HTTPS Worker origin without a path.');
+  url.pathname = '/usage';
+  url.search = new URLSearchParams({ from, to });
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${key}` },
+    cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer', redirect: 'error', signal });
+  if (response.status === 401) throw new Error('The private app key was rejected. Check it and reconnect.');
+  if (response.status === 503) throw new Error('Worker unavailable or Eloverblik busy. Check setup, wait one minute and retry.');
+  if (!response.ok) throw new Error('Consumption unavailable. Check Worker setup, meter access and the selected dates.');
+  const data = await response.json();
+  if (!Array.isArray(data.intervals)) throw new Error('The Worker returned invalid consumption data.');
+  return data;
 }

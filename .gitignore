@@ -1,0 +1,8 @@
+# Local credentials and Cloudflare tooling state must never enter the public repo.
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+.wrangler/
+node_modules/
+*.local.json

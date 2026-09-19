@@ -35,7 +35,9 @@ While tomorrow's prices are missing, the app MUST retry regularly from midday.
 Fetched days MUST be cached on the device and reused without refetching.
 
 - A cached day with at least 23 hours is served from cache.
-- Cache key per area and date; stored compactly (hour/price pairs only).
+- Cache key per area and date; compact arrays retain hour, price and absolute
+  start/end timestamps for usage joins. Legacy hour/price pairs still work in
+  existing tabs and are refreshed when Usage History needs absolute intervals.
 
 ### DATA-05 · Offline fallback
 **Status:** Implemented · **Priority:** Must · **Verify:** manual
@@ -100,5 +102,6 @@ At Danish midnight the app MUST move on to the new day by itself.
 ### DATA-11 · Network isolation
 **Status:** Implemented · **Priority:** Must · **Verify:** review
 
-Only `js/api.js`, `js/tariffs.js` and `js/weather.js` may perform network requests,
-so a source can be replaced in one place.
+Only `js/api.js`, `js/tariffs.js` and `js/weather.js` may perform frontend network
+requests, so a source can be replaced in one place. The separately deployed
+`worker/worker.js` is the server-side Eloverblik adapter (USE-01).

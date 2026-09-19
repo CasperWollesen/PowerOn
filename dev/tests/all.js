@@ -8,3 +8,5 @@ import './appliances.test.js';
 import './forecast.test.js';
 import './settings.test.js';
 import './ui.test.js';
+import './usage.test.js';
+import './worker.test.js';

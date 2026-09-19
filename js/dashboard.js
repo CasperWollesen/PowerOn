@@ -5,6 +5,7 @@ import { VIEW_MODES } from './settings.js';
 import { renderDayView } from './day-view.js';
 import { renderHistoryView, historyDayCount } from './history-view.js';
 import { renderOutlookView } from './outlook-view.js';
+import { renderUsageView } from './usage-view.js';
 import { shouldShowBanner, installState, installInstructions } from './install.js';
 import { load, save } from './storage.js';
 import { esc } from './format.js';
@@ -24,6 +25,7 @@ export function renderDashboard(container, model) {
   let view;
   if (selectedTab === 'history') view = renderHistoryView(model);
   else if (selectedTab === 'outlook') view = renderOutlookView(model);
+  else if (selectedTab === 'usage') view = renderUsageView(model);
   else view = renderDayView(model, selectedTab);
 
   const activeDay = days[selectedTab];
@@ -35,18 +37,19 @@ export function renderDashboard(container, model) {
       ${segmented('view-mode', VIEW_MODES, settings.viewMode, { small: true, label: 'Detail level' })}
       <button type="button" class="icon-btn" data-action="settings" aria-label="Settings">${icons.gear}</button>
     </header>
-    <nav class="day-tabs" aria-label="Day">
+    <nav class="day-tabs" aria-label="PowerOn views">
       ${tab('history', 'History', historySub(model), selectedTab)}
       ${tab('today', 'Today', daySub(days.today), selectedTab)}
       ${tab('tomorrow', 'Tomorrow', daySub(days.tomorrow), selectedTab)}
       ${tab('outlook', 'Outlook', outlookSub(model), selectedTab)}
+      ${tab('usage', 'Usage History', 'Your consumption', selectedTab)}
     </nav>
     ${installBanner()}
     ${gridHint(model)}
     ${view.html}
     <footer class="foot muted">
       ${activeDay?.stale ? '<span class="warn">Offline – showing last saved prices.</span><br>' : ''}
-      <span>${esc(settings.priceArea)} · ${esc(priceModelNote(model))} · window ${formatHourRange(model.window.start, model.window.end)}</span>
+      <span>${esc(settings.priceArea)} · ${esc(priceModelNote(model))} · ${selectedTab === 'usage' ? 'all hours' : `window ${formatHourRange(model.window.start, model.window.end)}`}</span>
     </footer>
   `;
 

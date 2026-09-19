@@ -31,6 +31,18 @@ export function addDays(dateStr, days) {
   return dt.toISOString().slice(0, 10);
 }
 
+/** Absolute instant of Danish midnight, including DST transitions. */
+// @req USE-02
+export function danishMidnight(date) {
+  let instant = Date.parse(`${date}T00:00:00Z`);
+  for (let i = 0; i < 3; i++) {
+    const local = nowInDenmark(new Date(instant));
+    const wall = Date.parse(`${local.date}T00:00:00Z`) + local.hour * 3600000 + local.minute * 60000;
+    instant += Date.parse(`${date}T00:00:00Z`) - wall;
+  }
+  return instant;
+}
+
 /** 'YYYY-MM-DD' → '10/9' style short label. */
 export function shortDate(dateStr) {
   const [, m, d] = dateStr.split('-').map(Number);

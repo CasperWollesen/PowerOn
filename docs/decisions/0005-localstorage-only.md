@@ -1,6 +1,6 @@
 # 0005 · localStorage as the only store
 
-**Status:** Accepted · 2026-09-10
+**Status:** Partially superseded by [0009](0009-private-usage-worker.md) for personal usage only; accepted for public price features · 2026-09-10
 
 ## Context
 
