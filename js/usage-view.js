@@ -1,8 +1,12 @@
 import { esc, num, kwh, kr } from './format.js';
 import { addDays, danishMidnight, shortDate, weekdayName } from './time.js';
-import { bandEdges } from './bands.js';
+import { bandEdges, bandFor, bandLabel } from './bands.js';
+import { dayWindow } from './settings.js';
 import { priceHours } from './tariffs.js';
-import { analyseUsage, analyseDays } from './usage.js';
+import { analyseUsage, analyseDays, analyseHours } from './usage.js';
+
+// Days the user has unfolded, kept here so background renders do not fold them.
+const openDays = new Set();
 
 // @req USE-04
 export function renderUsageView(model) {
@@ -24,7 +28,13 @@ export function renderUsageView(model) {
       for (let date = u.loadedTo; date >= u.loadedFrom; date = addDays(date, -1)) {
         days.push({ date, from: danishMidnight(date), to: danishMidnight(addDays(date, 1)) });
       }
-      content = summary(report, approximate, settings, analyseDays(u.intervals, prices, bandEdges(settings), days));
+      const edges = bandEdges(settings);
+      const hours = settings.dayStart && settings.dayEnd ? dayWindow(settings) : { start: 6, end: 22 };
+      const rows = analyseDays(u.intervals, prices, edges, days).map((d, i) => ({ ...d,
+        hours: analyseHours(u.intervals, prices, edges, days[i].from, days[i].to).filter((h) => h.hour >= hours.start && h.hour < hours.end) }));
+      const chart = { max: settings.chartMax > 0 ? settings.chartMax : 10, edges, window: hours,
+        kwhMax: Math.max(0.1, ...rows.flatMap((d) => d.hours.map((h) => h.kwh))) };
+      content = summary(report, approximate, settings, rows, chart);
     } catch {
       content = '<section class="card state" role="alert"><h2>Data could not be matched safely</h2><p>Invalid or overlapping intervals were received. Reload the period to retry.</p></section>';
     }
@@ -62,12 +72,15 @@ export function renderUsageView(model) {
       container.querySelectorAll('[data-usage-days]').forEach((b) => b.addEventListener('click', () => model.onUsagePreset(Number(b.dataset.usageDays))));
       container.querySelector('[data-usage-disconnect]')?.addEventListener('click', model.onUsageDisconnect);
       container.querySelector('[data-usage-retry]')?.addEventListener('click', model.onUsageLoad);
+      container.querySelectorAll('[data-usage-day]').forEach((d) => d.addEventListener('toggle', () => {
+        if (d.open) openDays.add(d.dataset.usageDay); else openDays.delete(d.dataset.usageDay);
+      }));
     },
   };
 }
 
 // @req USE-02 USE-03 USE-04
-function summary(r, approximate, settings, days) {
+function summary(r, approximate, settings, days, chart) {
   const noPrices = r.total > 0 && r.priced === 0;
   const partialPrices = r.unpriced > 0.000001;
   return `<section class="card usage-highlight ${r.bands.find((b) => b.id === 'extreme').kwh > 0 ? 'band-extreme' : 'band-expensive'}">
@@ -95,7 +108,7 @@ function summary(r, approximate, settings, days) {
     <p class="muted">Based on the lowest 10% of measured power, weighted by duration and capped at each reading. This is a rough floor, not measured standby or guaranteed savings. Heating, appliances and solar can affect it.</p>` :
     '<p class="muted">Needs at least seven complete days of measured readings, without gaps or estimates. A base-load estimate is not meaningful for this selection.</p>'}
   </section>
-  ${daily(days)}
+  ${daily(days, chart)}
   <section class="card"><h2>About these numbers</h2><p class="muted">${settings.priceMode === 'spot' ? 'Spot costs exclude tariffs, taxes, supplier surcharge and VAT.' :
     'Full-price estimates use your current grid company and supplier surcharge, plus the existing hourly tariff model. Subscription fees are excluded.'}
     ${approximate ? 'Some historical tariffs are missing: nearest stored tariffs or national defaults are used, which can also change the assigned bands.' : ''}
@@ -104,15 +117,44 @@ function summary(r, approximate, settings, days) {
   </section>`;
 }
 
-// @req USE-05
-function daily(days) {
+// @req USE-05 USE-06
+function daily(days, chart) {
+  const range = `${String(chart.window.start).padStart(2, '0')}–${String(chart.window.end).padStart(2, '0')}`;
   return `<section class="card"><h2>Daily breakdown</h2>
-    <p class="muted">Newest first · Danish days · only the price bands you actually used.</p>
-    <div class="usage-days">${days.map((d) => `<div class="usage-day">
-      <div class="usage-band-head"><strong>${esc(weekdayName(d.date))} ${esc(shortDate(d.date))}</strong>
+    <p class="muted">Newest first · Danish days · only the price bands you actually used. Select a day to see its hours.</p>
+    <div class="usage-days">${days.map((d) => `<details class="usage-day" data-usage-day="${esc(d.date)}" ${openDays.has(d.date) ? 'open' : ''}>
+      <summary><div class="usage-band-head"><strong>${esc(weekdayName(d.date))} ${esc(shortDate(d.date))}</strong>
         <strong>${d.total > 0 ? `${esc(kwh(d.total))} · ${d.priced > 0 ? esc(kr(d.cost)) : 'no prices'}` : 'No readings'}</strong></div>
       ${d.bands.map((b) => `<div class="usage-day-band band-${esc(b.id)}"><span>${esc(b.icon)} ${esc(b.label)}</span><span>${esc(kwh(b.kwh))}</span><span>${esc(kr(b.cost))}</span></div>`).join('')}
       ${d.unpriced > 0.000001 ? `<div class="usage-day-band"><span>Unpriced</span><span>${esc(kwh(d.unpriced))}</span><span>–</span></div>` : ''}
-    </div>`).join('')}</div>
+      </summary>${hourChart(d, chart, range)}
+    </details>`).join('')}</div>
   </section>`;
+}
+
+// @req USE-06
+function hourChart(d, chart, range) {
+  if (!d.hours.length) return '';
+  const used = d.hours.reduce((s, h) => s + h.kwh, 0), priced = d.hours.reduce((s, h) => s + h.priced, 0);
+  const cost = d.hours.reduce((s, h) => s + h.cost, 0);
+  const paid = priced > 0.000001 ? cost / priced : null;
+  const band = paid === null ? null : bandFor(paid, chart.edges);
+  const columns = d.hours.map((h) => {
+    const price = h.price === null ? 0 : Math.max(0, Math.min(h.price, chart.max)) / chart.max * 100;
+    const hour = String(h.hour).padStart(2, '0');
+    const label = `${hour}:00 · ${h.price === null ? 'no price' : `${num(h.price)} kr./kWh · ${bandLabel(h.band)}`} · ${kwh(h.kwh)}`;
+    return `<div class="usage-hour ${h.band ? `band-${esc(h.band)}` : ''}${h.price > chart.max ? ' over-max' : ''}" title="${esc(label)}" aria-label="${esc(label)}" role="img">
+      <div class="usage-hour-price"><span style="height:${esc(price)}%"></span></div>
+      <div class="usage-hour-label">${esc(hour)}</div>
+      <div class="usage-hour-kwh"><span style="height:${esc(Math.min(100, h.kwh / chart.kwhMax * 100))}%"></span></div>
+      <div class="usage-hour-value">${esc(num(h.kwh, 1))}</div>
+    </div>`;
+  }).join('');
+  return `<div class="usage-chart">
+    <p class="${band ? `band-${esc(band)}` : ''}"><strong class="usage-paid">${paid === null ? 'No prices' : `${esc(bandLabel(band))} day · ${esc(num(paid))} kr./kWh paid on average`}</strong></p>
+    <p class="muted">${esc(range)}: ${esc(kwh(used))}${priced > 0 ? ` · ${esc(kr(cost))}` : ''}</p>
+    <p class="usage-chart-caption muted">Price · fixed 0–${esc(num(chart.max, 0))} kr./kWh</p>
+    <div class="usage-hours ${d.hours.length > 18 ? 'dense' : ''}" style="--n:${d.hours.length}">${columns}</div>
+    <p class="usage-chart-caption muted">Your use per hour · kWh · same scale for every day (top = ${esc(num(chart.kwhMax, 1))} kWh)</p>
+  </div>`;
 }

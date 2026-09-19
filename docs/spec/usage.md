@@ -67,3 +67,21 @@ bands in which electricity was actually used, each with its kWh and cost. Days
 follow Danish midnight, so they can hold 23 or 25 hours. Days without readings are
 labelled as such; unpriced kWh is shown separately and never priced at zero. The
 same price settings, bands and estimate caveats as USE-02 apply.
+
+### USE-06 · Hourly chart for a day
+**Status:** Implemented · **Priority:** Should · **Verify:** test
+
+Selecting a day in the daily breakdown MUST unfold a static hourly chart for that
+day, limited to the day window from Settings (default 06–22); the rest of the day
+is noise for deciding when to use power. Totals and the daily rows still cover all
+24 hours, because that consumption is real cost.
+
+- One column per Danish clock hour. The price bar uses the fixed 0–`chartMax`
+  axis of decision 0006 and the band colour, so a cheap and an expensive day look
+  different at a glance. Prices above the maximum are clipped and marked.
+- Below it, the hour's kWh as a bar in the same band colour, on one scale shared by
+  every day of the loaded period so days stay comparable. Hours without a price are
+  neutral and never drawn as free.
+- A summary states the window's kWh, cost and average paid price with its band.
+- Hours are absolute one-hour slots from Danish midnight, so 23- and 25-hour days
+  are correct. Open days stay open across background renders.

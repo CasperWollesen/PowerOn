@@ -25,7 +25,7 @@
   }
   const u = { status: 'ready', connected: true, key: '', url: '', from: '2026-09-01', to: '2026-09-07',
     loadedFrom: '2026-09-01', loadedTo: '2026-09-07', intervals, spots };
-  const model = { usage: u, settings: { priceMode: 'spot', priceArea: 'DK1', viewMode: 'nerd' }, now: { date: '2026-09-19' },
+  const model = { usage: u, settings: { priceMode: 'spot', priceArea: 'DK1', viewMode: 'nerd', dayStart: '06:00', dayEnd: '22:00', chartMax: 10 }, now: { date: '2026-09-19' },
     onUsageDraft: (patch) => Object.assign(u, patch), onUsageLoad: () => draw(), onUsagePreset: (days) => {
       u.from = addDays(model.now.date, -days); u.to = addDays(model.now.date, -1); draw();
     }, onUsageDisconnect: () => { u.connected = false; u.status = 'idle'; draw(); }, onUsageConnect: () => { u.connected = true; u.status = 'ready'; draw(); } };

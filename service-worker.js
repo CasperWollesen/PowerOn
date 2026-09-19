@@ -5,7 +5,7 @@
 // Bump CACHE_VERSION whenever app files change, so clients pick up the update.
 // @req PWA-02 PWA-03
 
-const CACHE_VERSION = 'poweron-v10';
+const CACHE_VERSION = 'poweron-v11';
 
 const APP_SHELL = [
   './',

@@ -1,5 +1,6 @@
 // Pure interval analysis. All timestamps are absolute instants; no storage or DOM.
 import { BANDS, bandFor } from './bands.js';
+import { nowInDenmark } from './time.js';
 
 function intervals(rows, field) {
   const parsed = rows.map((row) => {
@@ -69,4 +70,35 @@ export function analyseDays(readings, priceRows, edges, days) {
     return { date, total: r.total, cost: r.cost, priced: r.priced, unpriced: r.unpriced,
       bands: r.bands.filter((b) => b.kwh > 0.0000001) };
   });
+}
+
+// @req USE-06
+export function analyseHours(readings, priceRows, edges, from, to) {
+  const inDay = (row) => Date.parse(row.end) > from && Date.parse(row.start) < to;
+  const rows = intervals(readings.filter(inDay), 'kwh'), prices = intervals(priceRows.filter(inDay), 'price');
+  const slots = [];
+  for (let start = from; start < to; start += 3600000) {
+    const end = Math.min(to, start + 3600000);
+    let kwh = 0, priced = 0, cost = 0, weighted = 0, pricedMs = 0;
+    for (const p of prices) {
+      const ms = Math.max(0, Math.min(p.end, end) - Math.max(p.start, start));
+      weighted += p.price * ms;
+      pricedMs += ms;
+    }
+    for (const r of rows) {
+      const ms = Math.max(0, Math.min(r.end, end) - Math.max(r.start, start));
+      if (!ms) continue;
+      kwh += r.kwh * ms / (r.end - r.start);
+      for (const p of prices) {
+        const both = Math.max(0, Math.min(r.end, p.end, end) - Math.max(r.start, p.start, start));
+        const energy = r.kwh * both / (r.end - r.start);
+        priced += energy;
+        cost += energy * p.price;
+      }
+    }
+    const price = pricedMs > 0 ? weighted / pricedMs : null;
+    slots.push({ hour: nowInDenmark(new Date(start)).hour, kwh, priced, cost, price,
+      band: price === null ? null : bandFor(price, edges) });
+  }
+  return slots;
 }

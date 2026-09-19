@@ -948,3 +948,21 @@ h3 { font-size: 0.9rem; font-weight: 600; margin: 14px 0 6px; }
 .usage-day-band { display: grid; grid-template-columns: 1fr 5.5rem 5.5rem; gap: 12px; margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: var(--band-bg, var(--surface-2)); font-size: 0.9rem; }
 .usage-day-band span:first-child { color: var(--band, var(--text)); font-weight: 600; }
 .usage-day-band span + span { text-align: right; }
+/* @req USE-06 */
+.usage-day summary { cursor: pointer; list-style: none; }
+.usage-day summary::-webkit-details-marker { display: none; }
+.usage-day summary .usage-band-head strong:first-child::before { content: '▸ '; color: var(--muted); }
+.usage-day[open] summary .usage-band-head strong:first-child::before { content: '▾ '; }
+.usage-chart { margin-top: 12px; padding: 12px; border-radius: 12px; background: var(--surface-2); }
+.usage-paid { color: var(--band, var(--text)); }
+.usage-chart-caption { font-size: 0.75rem; margin: 8px 0 4px; }
+.usage-hours { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 3px; }
+.usage-hour { display: grid; grid-template-rows: 90px auto 60px auto; min-width: 0; text-align: center; font-size: 0.65rem; }
+.usage-hour-price { display: flex; align-items: flex-end; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.usage-hour-kwh { display: flex; align-items: flex-start; }
+.usage-hour-price span, .usage-hour-kwh span { display: block; width: 100%; min-height: 2px; background: var(--band, var(--muted)); }
+.usage-hour-price span { border-radius: 3px 3px 0 0; }
+.usage-hour-kwh span { border-radius: 0 0 3px 3px; opacity: 0.75; }
+.usage-hour.over-max .usage-hour-price span { border-top: 3px dashed var(--text); }
+.usage-hour-label { color: var(--muted); padding: 2px 0; }
+.usage-hours.dense .usage-hour-value, .usage-hours.dense .usage-hour:nth-child(even) .usage-hour-label { visibility: hidden; }

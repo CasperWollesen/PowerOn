@@ -1,5 +1,5 @@
 import { test, expect } from './harness.js';
-import { analyseUsage, analyseDays } from '../../js/usage.js';
+import { analyseUsage, analyseDays, analyseHours } from '../../js/usage.js';
 import { danishMidnight, addDays } from '../../js/time.js';
 import { applyPriceModel } from '../../js/tariffs.js';
 import { bandEdges } from '../../js/bands.js';
@@ -145,4 +145,29 @@ test('USE-05', 'daily breakdown splits by day and lists only the bands that were
   expect(days[1].bands.map((b) => b.kwh)).toEqual([2, 3]);
   expect(days[1].cost).toBeCloseTo(9.4);
   expect(days[2].bands).toEqual([]);
+});
+
+test('USE-06', 'hourly slots follow Danish clock hours, keep unpriced hours unpriced and survive DST', () => {
+  const from = danishMidnight('2026-09-01'), at = (h) => new Date(from + h * 3600000).toISOString();
+  const slots = analyseHours([{ start: at(6), end: at(7), kwh: 2 }, { start: at(7), end: at(8), kwh: 1 }],
+    [{ start: at(6), end: at(6.5), price: 1 }, { start: at(6.5), end: at(7), price: 3 }], edges, from, danishMidnight('2026-09-02'));
+  expect(slots.length).toBe(24);
+  expect(slots[6].hour).toBe(6);
+  expect(slots[6].kwh).toBe(2);
+  expect(slots[6].cost).toBeCloseTo(4);
+  expect(slots[6].price).toBeCloseTo(2);
+  expect(slots[6].band).toBe('expensive');
+  expect(slots[7].price).toBe(null);
+  expect(slots[7].priced).toBe(0);
+  expect(analyseHours([], [], edges, danishMidnight('2026-10-25'), danishMidnight('2026-10-26')).length).toBe(25);
+});
+
+test('USE-06', 'day rows unfold into a chart limited to the day window', () => {
+  const from = danishMidnight('2026-09-01');
+  const rows = Array.from({ length: 24 }, (_, h) => ({ start: new Date(from + h * 3600000).toISOString(), end: new Date(from + (h + 1) * 3600000).toISOString(), kwh: 1, estimated: false }));
+  const html = renderUsageView({ usage: { status: 'ready', connected: true, intervals: rows, spots: {}, from: '2026-09-01', to: '2026-09-01',
+    loadedFrom: '2026-09-01', loadedTo: '2026-09-01' }, settings: { priceMode: 'spot', dayStart: '08:00', dayEnd: '20:00' }, now: { date: '2026-09-03' } }).html;
+  expect(html).toContain('data-usage-day="2026-09-01"');
+  expect(html.split('class="usage-hour ').length - 1).toBe(12);
+  expect(html).toContain('08–20: 12 kWh');
 });

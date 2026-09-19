@@ -102,8 +102,9 @@ Requirement → the code that implements it → the tests that verify it.
 | [USE-03](usage.md#use-03--base-consumption-estimate) | Base consumption estimate | Implemented | test | `js/usage-view.js`, `js/usage.js` | `usage.test.js` |
 | [USE-04](usage.md#use-04--usage-history-tab) | Usage History tab | Implemented | manual | `js/app.js`, `js/usage-view.js`, `css/styles.css` | – |
 | [USE-05](usage.md#use-05--daily-breakdown) | Daily breakdown | Implemented | test | `js/usage-view.js`, `js/usage.js`, `css/styles.css` | `usage.test.js` |
+| [USE-06](usage.md#use-06--hourly-chart-for-a-day) | Hourly chart for a day | Implemented | test | `js/usage-view.js`, `js/usage.js`, `css/styles.css` | `usage.test.js` |
 | [VIEW-01](views.md#view-01--toggle) | Toggle | Implemented | test | `js/dashboard.js`, `js/ui.js` | `ui.test.js` |
 | [VIEW-02](views.md#view-02--simple) | Simple | Implemented | manual | `js/day-view.js` | – |
 | [VIEW-03](views.md#view-03--nerd) | Nerd | Implemented | manual | `js/day-view.js` | – |
 
-99 requirements · 94 with code tags · 44 with tests.
+100 requirements · 95 with code tags · 45 with tests.
