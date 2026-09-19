@@ -59,8 +59,8 @@ async function upstream(path, token, body) {
     method: body ? 'POST' : 'GET',
     headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json' },
     ...(body ? { body: JSON.stringify(body) } : {}),
-    // No `cache` option: Workers with an older compatibility date throw on it.
-    signal: AbortSignal.timeout(25000), redirect: 'error',
+    // Workers reject `redirect: 'error'` and older ones `cache`; a 3xx fails as non-ok.
+    signal: AbortSignal.timeout(25000), redirect: 'manual',
     });
   } catch (error) {
     const network = failure(stage === 'token' ? 'TOKEN_NETWORK' : 'READINGS_NETWORK');

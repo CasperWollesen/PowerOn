@@ -70,7 +70,7 @@ test('USE-01', 'Worker normalizes successful upstream data without disclosing se
   let calls = 0;
   globalThis.fetch = async (url, options) => {
     calls++;
-    expect(options.redirect).toBe('error');
+    expect(options.redirect).toBe('manual');
     return new Response(JSON.stringify(url.endsWith('/token') ? { result: 'synthetic-access' } : fixture()));
   };
   try {
