@@ -198,5 +198,12 @@ export function consumptionError(status, diagnostic) {
   const hint = Object.hasOwn(hints, diagnostic.apiCode) ? ` ${hints[diagnostic.apiCode]} (Eloverblik ${diagnostic.apiCode}).` : '';
   const http = Number.isInteger(diagnostic.upstreamStatus) && diagnostic.upstreamStatus >= 400 && diagnostic.upstreamStatus <= 599
     ? ` Upstream HTTP ${diagnostic.upstreamStatus}.` : '';
-  return `${messages[diagnostic.code]}${hint}${http} [${diagnostic.code}]`;
+  const causes = {
+    timeout: ' Eloverblik did not answer within 25 seconds.',
+    fetch: ' The Worker runtime refused the request before it reached Eloverblik; redeploy the current Worker code.',
+    other: ' The connection failed for an unclassified reason.',
+  };
+  const cause = Object.hasOwn(causes, diagnostic.cause) ? causes[diagnostic.cause] : '';
+  const tag = cause ? `${diagnostic.code}:${diagnostic.cause}` : diagnostic.code;
+  return `${messages[diagnostic.code]}${cause}${hint}${http} [${tag}]`;
 }

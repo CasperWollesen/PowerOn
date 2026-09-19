@@ -140,7 +140,9 @@ Safe codes in square brackets identify the failing step:
 - `METER_REJECTED`: readings were refused; a recognized numeric Eloverblik code
   explains missing meter access or dates outside your authorization.
 - `TOKEN_NETWORK` / `READINGS_NETWORK`: the Worker could not reach the indicated
-  upstream endpoint, including timeout; retry later.
+  upstream endpoint. The suffix names the cause: `:timeout` (no answer within
+  25 seconds; retry later), `:fetch` (the Worker runtime rejected the request
+  before sending it; redeploy the current `worker/worker.js`) or `:other`.
 - `DATA_*`: data arrived but failed validation. Share only the code shown in
   PowerOn so the parser can be checked; do not share raw API responses.
 - `UPSTREAM_BUSY`: wait at least one minute. `WORKER_SETUP`: required secrets

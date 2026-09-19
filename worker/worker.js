@@ -59,10 +59,14 @@ async function upstream(path, token, body) {
     method: body ? 'POST' : 'GET',
     headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json' },
     ...(body ? { body: JSON.stringify(body) } : {}),
-    signal: AbortSignal.timeout(25000), redirect: 'error', cache: 'no-store',
+    // No `cache` option: Workers with an older compatibility date throw on it.
+    signal: AbortSignal.timeout(25000), redirect: 'error',
     });
-  } catch {
-    throw failure(stage === 'token' ? 'TOKEN_NETWORK' : 'READINGS_NETWORK');
+  } catch (error) {
+    const network = failure(stage === 'token' ? 'TOKEN_NETWORK' : 'READINGS_NETWORK');
+    // Only the error class is exposed, never its message.
+    network.cause = error?.name === 'TimeoutError' ? 'timeout' : error?.name === 'TypeError' ? 'fetch' : 'other';
+    throw network;
   }
   if (!response.ok) {
     if ([429, 503].includes(response.status)) throw failure('UPSTREAM_BUSY', response.status);
@@ -173,6 +177,7 @@ export default {
       const code = error instanceof UsageFailure ? error.code : 'WORKER_ERROR';
       return reply(limited ? 503 : 502, { error: 'Consumption unavailable', code,
         ...(API_CODES.has(error.apiCode) ? { apiCode: error.apiCode } : {}),
+        ...(['timeout', 'fetch', 'other'].includes(error.cause) ? { cause: error.cause } : {}),
         ...(Number.isInteger(error.status) && error.status >= 400 && error.status <= 599 ? { upstreamStatus: error.status } : {}),
       });
     }

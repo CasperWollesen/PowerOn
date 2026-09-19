@@ -120,6 +120,7 @@ test('USE-01', 'Worker separates token failures, meter access and parsing withou
     globalThis.fetch = async () => { throw new Error('synthetic-private-network-detail'); };
     data = await (await worker.fetch(request(), localEnv)).json();
     expect(data.code).toBe('READINGS_NETWORK');
+    expect(data.cause).toBe('other');
     expect(JSON.stringify(data).includes('synthetic-private')).toBe(false);
   } finally { globalThis.fetch = original; }
 });

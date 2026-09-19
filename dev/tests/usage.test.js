@@ -131,4 +131,6 @@ test('USE-01', 'diagnostics show safe actionable codes, never upstream text or u
   expect(consumptionError(503, { code: 'WORKER_SETUP' })).toContain('three required secrets');
   expect(consumptionError(503, { code: 'UPSTREAM_BUSY' })).toContain('one minute');
   expect(consumptionError(502, { code: 'TOKEN_REJECTED', apiCode: 50001 })).toContain('invalid or inactive');
+  expect(consumptionError(502, { code: 'TOKEN_NETWORK', cause: 'timeout' })).toContain('[TOKEN_NETWORK:timeout]');
+  expect(consumptionError(502, { code: 'TOKEN_NETWORK', cause: 'synthetic-private' })).toContain('[TOKEN_NETWORK]');
 });
