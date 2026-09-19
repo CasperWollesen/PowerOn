@@ -4,7 +4,7 @@ import { danishMidnight, addDays } from '../../js/time.js';
 import { applyPriceModel } from '../../js/tariffs.js';
 import { bandEdges } from '../../js/bands.js';
 import { renderUsageView } from '../../js/usage-view.js';
-import { getConsumption } from '../../js/api.js';
+import { getConsumption, consumptionError } from '../../js/api.js';
 
 const start = Date.parse('2026-09-01T00:00:00Z');
 const iso = (hour) => new Date(start + hour * 3600000).toISOString();
@@ -117,4 +117,18 @@ test('USE-02', 'view never presents an entirely unpriced period as a free bill',
   expect(result.html).toContain('Price breakdown unavailable');
   expect(result.html).toContain('Partial cost');
   expect(result.html).toContain('1 kWh unpriced');
+});
+
+test('USE-01', 'diagnostics show safe actionable codes, never upstream text or unrecognized fields', () => {
+  const message = consumptionError(502, { code: 'METER_REJECTED', apiCode: 20010, upstreamStatus: 400,
+    error: 'synthetic-private-upstream-text' });
+  expect(message).toContain('No access relation');
+  expect(message).toContain('Upstream HTTP 400');
+  expect(message).toContain('[METER_REJECTED]');
+  expect(message.includes('synthetic-private')).toBe(false);
+  expect(consumptionError(502, { error: 'synthetic-private' })).toContain('Worker HTTP 502');
+  expect(consumptionError(502, { code: 'synthetic-private' }).includes('synthetic-private')).toBe(false);
+  expect(consumptionError(503, { code: 'WORKER_SETUP' })).toContain('three required secrets');
+  expect(consumptionError(503, { code: 'UPSTREAM_BUSY' })).toContain('one minute');
+  expect(consumptionError(502, { code: 'TOKEN_REJECTED', apiCode: 50001 })).toContain('invalid or inactive');
 });

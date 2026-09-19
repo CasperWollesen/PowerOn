@@ -147,9 +147,56 @@ export async function getConsumption(workerUrl, key, from, to, signal) {
   const response = await fetch(url, { headers: { Authorization: `Bearer ${key}` },
     cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer', redirect: 'error', signal });
   if (response.status === 401) throw new Error('The private app key was rejected. Check it and reconnect.');
-  if (response.status === 503) throw new Error('Worker unavailable or Eloverblik busy. Check setup, wait one minute and retry.');
-  if (!response.ok) throw new Error('Consumption unavailable. Check Worker setup, meter access and the selected dates.');
+  if (!response.ok) {
+    const diagnostic = await response.json().catch(() => null);
+    throw new Error(consumptionError(response.status, diagnostic));
+  }
   const data = await response.json();
   if (!Array.isArray(data.intervals)) throw new Error('The Worker returned invalid consumption data.');
   return data;
+}
+
+// @req USE-01
+export function consumptionError(status, diagnostic) {
+  const messages = {
+    WORKER_SETUP: 'Worker setup incomplete. Check the three required secrets and the 18-digit meter ID.',
+    DATE_RANGE: 'The Worker rejected the dates. Select 1–92 completed Danish days.',
+    TOKEN_REJECTED: 'Eloverblik rejected the token exchange. Check that the Worker has an active Customer API refresh token.',
+    TOKEN_NETWORK: 'The Worker could not reach the Eloverblik token service. Retry later.',
+    TOKEN_FORMAT: 'Eloverblik returned an unexpected token response. Check the Customer API token and Worker version.',
+    READINGS_NETWORK: 'The Worker could not retrieve readings from Eloverblik. Retry later or select a shorter period.',
+    METER_REJECTED: 'Eloverblik rejected the readings request. Check meter access and the selected dates.',
+    UPSTREAM_BUSY: 'Eloverblik is busy. Wait at least one minute and retry.',
+    DATA_METER: 'Eloverblik returned an unexpected meter identifier. The readings were not used.',
+    DATA_TYPE: 'The returned data is not a supported consumption series. Check that the configured meter is for consumption.',
+    DATA_UNIT: 'Eloverblik returned an unsupported measurement unit. The readings were not used.',
+    DATA_RESOLUTION: 'Eloverblik returned a resolution other than hourly or 15-minute readings. Try a shorter, recent period.',
+    DATA_FORMAT: 'Eloverblik returned a data structure this Worker cannot read.',
+    DATA_INTERVAL: 'Eloverblik returned an invalid or unsupported time interval.',
+    DATA_POSITION: 'Eloverblik returned a reading outside its stated interval.',
+    DATA_READING: 'Eloverblik returned an invalid value or unsupported reading quality.',
+    DATA_OVERLAP: 'Eloverblik returned overlapping readings. They were not added together.',
+    WORKER_ERROR: 'The Worker encountered an unexpected error. Check that the latest Worker code is deployed.',
+  };
+  const hints = {
+    10007: 'Consent for access is missing in Eloverblik.',
+    20008: 'The configured meter was not found.',
+    20009: 'The configured meter is a child meter; use the supported parent consumption meter.',
+    20010: 'No access relation exists for this meter.',
+    20012: 'Access to the meter was denied.',
+    30008: 'The requested aggregation is unavailable.',
+    30010: 'Your authorization does not cover the selected period.',
+    30016: 'The meter access relation has expired.',
+    30018: 'The meter has no accessible data for this period. Try dates after its registration.',
+    40014: 'No meter authorization was found.',
+    50000: 'The token type is wrong; use a Customer API refresh token.',
+    50001: 'The refresh token is invalid or inactive.',
+  };
+  if (!diagnostic || !Object.hasOwn(messages, diagnostic.code)) {
+    return `Consumption request failed (Worker HTTP ${status}). Update the Worker code for a precise diagnosis, then retry.`;
+  }
+  const hint = Object.hasOwn(hints, diagnostic.apiCode) ? ` ${hints[diagnostic.apiCode]} (Eloverblik ${diagnostic.apiCode}).` : '';
+  const http = Number.isInteger(diagnostic.upstreamStatus) && diagnostic.upstreamStatus >= 400 && diagnostic.upstreamStatus <= 599
+    ? ` Upstream HTTP ${diagnostic.upstreamStatus}.` : '';
+  return `${messages[diagnostic.code]}${hint}${http} [${diagnostic.code}]`;
 }

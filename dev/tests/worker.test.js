@@ -91,3 +91,35 @@ test('USE-01', 'Worker normalizes successful upstream data without disclosing se
     expect((await failed.text()).includes('upstream-secret-error')).toBe(false);
   } finally { globalThis.fetch = original; }
 });
+
+test('USE-01', 'Worker separates token failures, meter access and parsing without exposing upstream payloads', async () => {
+  const original = globalThis.fetch;
+  const localEnv = { ...env, ELOVERBLIK_REFRESH_TOKEN: 'synthetic-diagnostic-refresh' };
+  try {
+    globalThis.fetch = async () => new Response(JSON.stringify({ errorCode: 50001, errorText: 'synthetic-private' }), { status: 401 });
+    let response = await worker.fetch(request(), localEnv);
+    let data = await response.json();
+    expect(data.code).toBe('TOKEN_REJECTED');
+    expect(data.apiCode).toBe(50001);
+    expect(data.upstreamStatus).toBe(401);
+    expect(JSON.stringify(data).includes('synthetic-private')).toBe(false);
+
+    globalThis.fetch = async (url) => new Response(JSON.stringify(url.endsWith('/token') ? { result: 'synthetic-token' } :
+      { result: [{ id: meter, success: false, errorCode: 20010, errorText: 'synthetic-private' }] }));
+    data = await (await worker.fetch(request(), localEnv)).json();
+    expect(data.code).toBe('METER_REJECTED');
+    expect(data.apiCode).toBe(20010);
+    expect(JSON.stringify(data).includes(meter)).toBe(false);
+
+    const raw = fixture();
+    raw.result[0].MyEnergyData_MarketDocument.TimeSeries[0].Period[0].resolution = 'P1D';
+    globalThis.fetch = async () => new Response(JSON.stringify(raw));
+    data = await (await worker.fetch(request(), localEnv)).json();
+    expect(data.code).toBe('DATA_RESOLUTION');
+
+    globalThis.fetch = async () => { throw new Error('synthetic-private-network-detail'); };
+    data = await (await worker.fetch(request(), localEnv)).json();
+    expect(data.code).toBe('READINGS_NETWORK');
+    expect(JSON.stringify(data).includes('synthetic-private')).toBe(false);
+  } finally { globalThis.fetch = original; }
+});

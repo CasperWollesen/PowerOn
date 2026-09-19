@@ -13,6 +13,11 @@ from Eloverblik. The public app MUST never contain Eloverblik credentials.
 - The browser keeps the app key and consumption in memory only. Disconnect clears
   both and invalidates pending requests. Responses are private and no-store.
 - Empty, missing, estimated, malformed and failed upstream data remain distinct.
+- Failures expose only fixed diagnostic codes and allowlisted numeric Eloverblik
+  error codes: token exchange, meter access, date range, upstream HTTP/network,
+  and unsupported/malformed data must be distinguishable. Never relay upstream
+  error text, stack traces or response bodies. Legacy Workers get an explicit
+  HTTP-status fallback and an instruction to update for diagnostics.
 
 ### USE-02 · Consumption by price band
 **Status:** Implemented · **Priority:** Must · **Verify:** test

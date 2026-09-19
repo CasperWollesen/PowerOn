@@ -3,6 +3,29 @@ const UPSTREAM = 'https://api.eloverblik.dk/customerapi/api';
 let tokenCache = null;
 let tokenPending = null;
 
+class UsageFailure extends Error {
+  constructor(code, status) {
+    super(code);
+    this.code = code;
+    this.status = status;
+  }
+}
+
+function failure(code, status = null) {
+  return new UsageFailure(code, status);
+}
+
+// Only documented error numbers are allowed out; upstream text may contain PII.
+const API_CODES = new Set([10001, 10007, 20000, 20001, 20003, 20004, 20008, 20009,
+  20010, 20011, 20012, 20013, 30000, 30001, 30002, 30003, 30004, 30008, 30010,
+  30011, 30014, 30015, 30016, 30017, 30018, 40014, 50000, 50001, 50002, 50003]);
+
+function apiFailure(stage, value, status = null) {
+  const error = failure(stage === 'token' ? 'TOKEN_REJECTED' : 'METER_REJECTED', status);
+  if (API_CODES.has(value)) error.apiCode = value;
+  return error;
+}
+
 function validDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value || '') &&
     Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
@@ -29,25 +52,35 @@ async function authorized(header, key) {
 }
 
 async function upstream(path, token, body) {
-  const response = await fetch(`${UPSTREAM}${path}`, {
+  const stage = body ? 'readings' : 'token';
+  let response;
+  try {
+    response = await fetch(`${UPSTREAM}${path}`, {
     method: body ? 'POST' : 'GET',
     headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json' },
     ...(body ? { body: JSON.stringify(body) } : {}),
     signal: AbortSignal.timeout(25000), redirect: 'error', cache: 'no-store',
-  });
-  if (!response.ok) {
-    const error = new Error('Upstream unavailable');
-    error.status = response.status;
-    throw error;
+    });
+  } catch {
+    throw failure(stage === 'token' ? 'TOKEN_NETWORK' : 'READINGS_NETWORK');
   }
-  return response.json();
+  if (!response.ok) {
+    if ([429, 503].includes(response.status)) throw failure('UPSTREAM_BUSY', response.status);
+    // Parse only the allowlisted numeric code, never forward errorText or detail.
+    const details = await response.json().catch(() => null);
+    throw apiFailure(stage, details?.errorCode, response.status);
+  }
+  let data;
+  try { data = await response.json(); } catch { throw failure(stage === 'token' ? 'TOKEN_FORMAT' : 'DATA_FORMAT'); }
+  if (data?.success === false) throw apiFailure(stage, data.errorCode);
+  return data;
 }
 
 async function accessToken(refreshToken) {
   if (tokenCache?.refresh === refreshToken && tokenCache.until > Date.now()) return tokenCache.value;
   if (!tokenPending) {
     tokenPending = upstream('/token', refreshToken).then((data) => {
-      if (typeof data.result !== 'string' || !data.result) throw new Error('Invalid token response');
+      if (typeof data?.result !== 'string' || !data.result) throw failure('TOKEN_FORMAT');
       tokenCache = { refresh: refreshToken, value: data.result, until: Date.now() + 23 * 3600000 };
       return data.result;
     }).finally(() => { tokenPending = null; });
@@ -57,40 +90,41 @@ async function accessToken(refreshToken) {
 
 // @req USE-01 USE-02
 export function normalizeConsumption(raw, meter) {
-  if (raw?.success === false || !Array.isArray(raw?.result)) throw new Error('Invalid response');
+  if (raw?.success === false) throw apiFailure('readings', raw.errorCode);
+  if (!Array.isArray(raw?.result)) throw failure('DATA_FORMAT');
   const intervals = [];
   for (const item of raw.result) {
-    if (item.id !== meter) throw new Error('Unexpected meter');
+    if (item.id !== meter) throw failure('DATA_METER');
     if (item.success !== true) {
       if (item.errorCode === 30015) continue; // explicitly no available data
-      throw new Error('Meter request failed');
+      throw apiFailure('readings', item.errorCode);
     }
     const series = item.MyEnergyData_MarketDocument?.TimeSeries;
-    if (!Array.isArray(series)) throw new Error('Missing series');
+    if (!Array.isArray(series)) throw failure('DATA_FORMAT');
     for (const s of series) {
-      if (!['A04', 'A64'].includes(s.businessType) || s['measurement_Unit.name'] !== 'KWH') {
-        throw new Error('A consumption meter in kWh is required');
-      }
-      if (!Array.isArray(s.Period)) throw new Error('Missing periods');
+      if (!['A04', 'A64'].includes(s.businessType)) throw failure('DATA_TYPE');
+      if (s['measurement_Unit.name'] !== 'KWH') throw failure('DATA_UNIT');
+      if (!Array.isArray(s.Period)) throw failure('DATA_FORMAT');
       for (const period of s.Period) {
         const step = { PT1H: 3600000, PT15M: 900000 }[period.resolution];
+        if (!step) throw failure('DATA_RESOLUTION');
         const start = Date.parse(period.timeInterval?.start);
         const end = Date.parse(period.timeInterval?.end);
         const absolute = [period.timeInterval?.start, period.timeInterval?.end]
           .every((value) => typeof value === 'string' && /(?:Z|[+-]\d{2}:\d{2})$/.test(value));
         if (!step || !absolute || !Number.isFinite(start) || !(end > start) || !Array.isArray(period.Point)) {
-          throw new Error('Invalid interval');
+          throw failure('DATA_INTERVAL');
         }
         for (const point of period.Point) {
           const position = Number(point.position);
           const at = start + (position - 1) * step;
           const quality = point['out_Quantity.quality'];
-          if (!Number.isInteger(position) || position < 1 || at + step > end) throw new Error('Invalid position');
+          if (!Number.isInteger(position) || position < 1 || at + step > end) throw failure('DATA_POSITION');
           if (quality === 'A02' || quality === 'A05') continue;
           const quantity = point['out_Quantity.quantity'];
           const value = typeof quantity === 'string' && quantity.trim() !== '' ? Number(quantity) : NaN;
           if (!Number.isFinite(value) || value < 0 || !['A01', 'A03', 'A04'].includes(quality)) {
-            throw new Error('Invalid reading');
+            throw failure('DATA_READING');
           }
           intervals.push({ start: new Date(at).toISOString(), end: new Date(at + step).toISOString(),
             kwh: value, estimated: quality !== 'A04' || s.businessType === 'A64' });
@@ -100,7 +134,7 @@ export function normalizeConsumption(raw, meter) {
   }
   intervals.sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
   for (let i = 1; i < intervals.length; i++) {
-    if (Date.parse(intervals[i].start) < Date.parse(intervals[i - 1].end)) throw new Error('Overlapping readings');
+    if (Date.parse(intervals[i].start) < Date.parse(intervals[i - 1].end)) throw failure('DATA_OVERLAP');
   }
   return intervals;
 }
@@ -122,10 +156,10 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
     if (request.method !== 'GET') return reply(405, { error: 'Method not allowed' });
     if (!env.ELOVERBLIK_REFRESH_TOKEN || !/^\d{18}$/.test(env.ELOVERBLIK_METERING_POINT || '') ||
-        !env.POWERON_APP_KEY || env.POWERON_APP_KEY.length < 43) return reply(503, { error: 'Worker setup incomplete' });
+        !env.POWERON_APP_KEY || env.POWERON_APP_KEY.length < 43) return reply(503, { error: 'Worker setup incomplete', code: 'WORKER_SETUP' });
     if (!await authorized(request.headers.get('Authorization'), env.POWERON_APP_KEY)) return reply(401, { error: 'Invalid app key' });
     const from = url.searchParams.get('from'), to = url.searchParams.get('to');
-    if (!validRange(from, to, todayInDenmark())) return reply(400, { error: 'Select 1–92 completed days' });
+    if (!validRange(from, to, todayInDenmark())) return reply(400, { error: 'Select 1–92 completed days', code: 'DATE_RANGE' });
     try {
       const token = await accessToken(env.ELOVERBLIK_REFRESH_TOKEN);
       const raw = await upstream(`/meterdata/gettimeseries/${from}/${to}/Actual`, token,
@@ -136,8 +170,11 @@ export default {
       if (error.status === 401) tokenCache = null;
       const limited = error.status === 429 || error.status === 503;
       if (limited) headers['Retry-After'] = '60';
-      return reply(limited ? 503 : 502, { error: limited ? 'Eloverblik is busy. Wait at least one minute and retry.' :
-        'Eloverblik data unavailable. Check Worker secrets, meter access and selected dates.' });
+      const code = error instanceof UsageFailure ? error.code : 'WORKER_ERROR';
+      return reply(limited ? 503 : 502, { error: 'Consumption unavailable', code,
+        ...(API_CODES.has(error.apiCode) ? { apiCode: error.apiCode } : {}),
+        ...(Number.isInteger(error.status) && error.status >= 400 && error.status <= 599 ? { upstreamStatus: error.status } : {}),
+      });
     }
   },
 };

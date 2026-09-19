@@ -125,6 +125,32 @@ consumption; CORS is an additional browser restriction, not authentication.
 
 ## Troubleshooting and operation
 
+### Update an existing Worker for precise error messages
+
+GitHub Pages updates automatically; the Worker does not. If PowerOn reports
+`Worker HTTP 502` and asks for an update, open your Worker in Cloudflare →
+**Edit code**, replace the module with the latest
+[`worker/worker.js`](../worker/worker.js), and choose **Deploy**. Keep all existing
+variables and secrets. Reload PowerOn, re-enter the app key and retry.
+
+Safe codes in square brackets identify the failing step:
+
+- `TOKEN_REJECTED`: Eloverblik rejected token exchange; check the active Customer
+  API refresh token, not the separate PowerOn app key.
+- `METER_REJECTED`: readings were refused; a recognized numeric Eloverblik code
+  explains missing meter access or dates outside your authorization.
+- `TOKEN_NETWORK` / `READINGS_NETWORK`: the Worker could not reach the indicated
+  upstream endpoint, including timeout; retry later.
+- `DATA_*`: data arrived but failed validation. Share only the code shown in
+  PowerOn so the parser can be checked; do not share raw API responses.
+- `UPSTREAM_BUSY`: wait at least one minute. `WORKER_SETUP`: required secrets
+  are missing or malformed.
+
+These diagnostics never include raw upstream messages, addresses, readings,
+meter IDs, tokens or stack traces. They identify the failure, not necessarily its
+underlying cause. A successful unauthenticated preflight does not validate a real
+Eloverblik token or meter relation.
+
 - **401 / key rejected:** use the separate app key, matching the Worker secret.
   To revoke access, replace `POWERON_APP_KEY` and reconnect with the new value.
 - **403 / browser network error:** check `ALLOWED_ORIGIN` exactly; a URL path or
