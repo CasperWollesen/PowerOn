@@ -28,4 +28,5 @@ replaces the lines at the raw cheapest buy and best sale from lab-08.
       10–16; sell above 1,35 kr. (cheapest buy 1,07 at 12:00) shades 17–24; +0,64 a
       kWh. 21/10: buy below 1,52, sell above 2,04, nothing shaded, does not pay.
       24/10: shades 00–06 and 18–20, +0,08. Screenshot checked; no console errors
-- [ ] Live site checked after deploy
+- [x] Live site checked after deploy: 22/10 (20 shaded hours, +0,64 a kWh) and
+      21/10 (nothing shaded, does not pay) read the same as locally; no console errors
