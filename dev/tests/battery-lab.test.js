@@ -6,7 +6,7 @@ import {
 import { batteryConfig, hourFlows, planWindow, runStrategy, runDays, manualSellHours } from '../../battery-lab/optimizer.js';
 import {
   totals, dayRanges, stepRange, shiftStep, breakEven, cumulativeSaving, dayStory, compareRuns, investment, paybackYears, perYear,
-  isoWeek, dayScore, dayExtras, dayTraits, gainSource, periodUnit, shiftPeriod, presetPeriod, edgeStep, priceAverages,
+  isoWeek, dayScore, dayExtras, dayTraits, gainSource, periodUnit, shiftPeriod, presetPeriod, edgeStep, priceRanges,
 } from '../../battery-lab/summary.js';
 import { parseCsv, parseNumber, parseTimestamp, describeCsv, toHourly, completeHours, actualRows } from '../../battery-lab/import.js';
 import { monthsBetween } from '../../battery-lab/data.js';
@@ -507,13 +507,8 @@ test('LAB-10 LAB-20', 'stepping past the edge of the period moves the period and
   expect(edgeStep({ from: '2023-01-02', to: '2023-01-08' }, -1, last, first)).toBeNull();
 });
 
-test('LAB-10', 'the average buy and sell price of a day skip unpriced hours', () => {
+test('LAB-10', 'the price ranges of a day skip unpriced hours', () => {
   const rows = [{ priced: true, buy: 2, sell: 1 }, { priced: true, buy: 3, sell: 1.5 }, { priced: false, buy: 0, sell: 0 }];
-  const a = priceAverages(rows);
-  expect(a.buy).toBeCloseTo(2.5, 9);
-  expect(a.sell).toBeCloseTo(1.25, 9);
-  expect(a.spread).toBeCloseTo(1.25, 9);
-  expect(a.minBuy).toBe(2);
-  expect(a.maxSell).toBe(1.5);
-  expect(priceAverages([{ priced: false, buy: 1, sell: 1 }])).toBeNull();
+  expect(priceRanges(rows)).toEqual({ minBuy: 2, maxBuy: 3, minSell: 1, maxSell: 1.5 });
+  expect(priceRanges([{ priced: false, buy: 1, sell: 1 }])).toBeNull();
 });

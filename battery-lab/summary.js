@@ -418,18 +418,12 @@ export function edgeStep(period, direction, last, first) {
   return { period: next, date: direction < 0 ? next.to : next.from };
 }
 
-/** The day's average buy and sell price over priced hours and their ranges, or null. */
+/** The day's lowest and highest buy and sell price over priced hours, or null. */
 // @req LAB-10
-export function priceAverages(rows) {
+export function priceRanges(rows) {
   const priced = rows.filter((r) => r.priced);
   if (!priced.length) return null;
   const buys = priced.map((r) => r.buy);
   const sells = priced.map((r) => r.sell);
-  const mean = (list) => list.reduce((a, v) => a + v, 0) / list.length;
-  const buy = mean(buys);
-  const sell = mean(sells);
-  return {
-    buy, sell, spread: buy - sell,
-    minBuy: Math.min(...buys), maxBuy: Math.max(...buys), minSell: Math.min(...sells), maxSell: Math.max(...sells),
-  };
+  return { minBuy: Math.min(...buys), maxBuy: Math.max(...buys), minSell: Math.min(...sells), maxSell: Math.max(...sells) };
 }

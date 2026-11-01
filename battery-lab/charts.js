@@ -175,7 +175,8 @@ function hourAxis(hours, x, band, height) {
  * The three day panels sharing the hour axis: prices, energy in and out of the
  * battery, and the battery level split by origin.
  * rows: the day's strategy rows; before: { solarE, gridE, startE } at midnight;
- * refs: dashed reference lines in the price panel, [{ value, color }].
+ * refs: dashed reference lines in the price panel, [{ value, color }]; with two,
+ * a faint band fills the space between them.
  */
 // @req LAB-10
 export function dayPanels({ width, hours, rows, before, cfg, tips, refs = [] }) {
@@ -203,7 +204,10 @@ export function dayPanels({ width, hours, rows, before, cfg, tips, refs = [] }) 
     });
     return `<path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
   };
-  const refLines = refs.filter((r) => Number.isFinite(r.value)).map((r) => {
+  const shown = refs.filter((r) => Number.isFinite(r.value));
+  const band2 = shown.length === 2
+    ? `<rect class="ref-band" x="${pad.l}" width="${w}" y="${Math.min(y1(shown[0].value), y1(shown[1].value)).toFixed(1)}" height="${Math.abs(y1(shown[0].value) - y1(shown[1].value)).toFixed(1)}"/>` : '';
+  const refLines = band2 + shown.map((r) => {
     const yy = y1(r.value).toFixed(1);
     return `<line class="ref" x1="${pad.l}" x2="${pad.l + w}" y1="${yy}" y2="${yy}" stroke="${r.color}"/>`;
   }).join('');

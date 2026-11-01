@@ -224,6 +224,7 @@ td .key { display: inline-block; width: 10px; height: 10px; border-radius: 3px; 
 .chart .hit:hover { fill: var(--text); fill-opacity: 0.06; }
 .chart .limit { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; opacity: 0.7; }
 .chart .ref { stroke-width: 1.25; stroke-dasharray: 6 4; opacity: 0.9; }
+.chart .ref-band { fill: var(--text); fill-opacity: 0.06; }
 .chart-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 14px; }
 .toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--muted); cursor: pointer; }
 .stepper button.edge { border-style: dashed; }

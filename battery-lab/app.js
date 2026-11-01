@@ -13,7 +13,7 @@ import { STRATEGIES, batteryConfig, runStrategy, runDays, hourAction, startEnerg
 import {
   totals, dayRanges, stepRange, shiftStep, cumulativeSaving, saving, breakEven, perYear, dayStory,
   compareRuns, investment, paybackYears, isoWeek, dayExtras, dayTraits, gainSource,
-  periodUnit, shiftPeriod, presetPeriod, edgeStep, priceAverages,
+  periodUnit, shiftPeriod, presetPeriod, edgeStep, priceRanges,
 } from './summary.js';
 import { parseCsv, describeCsv, toHourly, completeHours, coverage, actualRows, ROLES, UNITS } from './import.js';
 import { loadPrices, loadWeather, getGridCompanies } from './data.js';
@@ -62,7 +62,7 @@ const state = {
   companies: [],
   wearCalc: { price: 60000, cycles: 3000 },
   folds: loadFolds(),
-  averages: load('lab.averages') === true,
+  priceLines: load('lab.priceLines') === true,
   generation: 0,
 };
 
@@ -1065,6 +1065,16 @@ function netText(t) {
   return signed(-t.netWithWear, 2);
 }
 
+/** The band between the cheapest buy and the best sale, and whether buying to sell later pays. */
+// @req LAB-10 LAB-11
+function tradeText(trade) {
+  const from = `${hh(trade.from.hour)}:00`;
+  const verdict = trade.to.hour <= trade.from.hour ? 'but the best sale comes before the cheapest buy'
+    : trade.pays ? `it does, by ${signed(trade.gain, 2)} a kWh` : 'it does not this day';
+  return `<p class="muted small">Cheapest buy ${price(trade.from.buy)} kr. at ${from} · best sale ${price(trade.to.sell)} kr. at ${hh(trade.to.hour)}:00 · difference ${signed(trade.to.sell - trade.from.buy, 2)} a kWh. `
+    + `Bought at ${from}, a kWh must sell above ${price(trade.need)} kr. to pay after losses, wear and margin – ${verdict}.</p>`;
+}
+
 // @req LAB-10 LAB-11 LAB-17
 function ownerDay(step, facts) {
   const sim = state.sim;
@@ -1082,8 +1092,11 @@ function ownerDay(step, facts) {
     + `\nSmart: ${does(smart[i])} · battery ${pct(level(smart[i].energy))}`
     + `\nSmart − today: ${signed(cashOf(smart[i]) - cashOf(today[i]), 2)}`);
   const width = contentWidth($('#explorer'));
-  const avg = priceAverages(today);
-  const refs = state.averages && avg ? [{ value: avg.buy, color: 'var(--c-blue)' }, { value: avg.sell, color: 'var(--c-violet)' }] : [];
+  const ranges = priceRanges(today);
+  const dayRows = hours.map((h, i) => ({ hour: h.hour, buy: today[i].priced ? today[i].buy : NaN, sell: today[i].sell, pv: today[i].pv, load: today[i].load }));
+  const be = breakEven(cfg, dayRows.filter((d) => Number.isFinite(d.buy)));
+  const trade = be?.rules.find((r) => r.id === 'gridToGrid');
+  const refs = state.priceLines && trade ? [{ value: trade.from.buy, color: 'var(--c-blue)' }, { value: trade.to.sell, color: 'var(--c-violet)' }] : [];
   const sp = dayPanels({ width, hours, rows: smart, before: start, cfg, tips, refs });
   const tp = dayPanels({ width, hours, rows: today, before: start, cfg, tips });
   const levels = levelLines({
@@ -1103,7 +1116,6 @@ function ownerDay(step, facts) {
       <td>${does(t)}</td><td>${pct(level(t.energy))}</td><td>${does(s)}</td><td>${pct(level(s.energy))}</td>
       <td class="${d > 0.005 ? 'pos' : d < -0.005 ? 'neg' : ''}">${signed(d, 2)}</td></tr>`;
   }).join('');
-  const dayRows = hours.map((h, i) => ({ hour: h.hour, buy: today[i].priced ? today[i].buy : NaN, sell: today[i].sell, pv: today[i].pv, load: today[i].load }));
 
   const story = part('dayStory', 'The day in words, side by side',
     `${esc(label('manual'))} nets ${netText(cmp.base)} · ${esc(label('daySmart'))} ${netText(cmp.other)} · incl. wear`,
@@ -1113,12 +1125,12 @@ function ownerDay(step, facts) {
     </div>`);
 
   const pricesPart = part('dayPrices', 'Prices, kr./kWh',
-    avg ? `Buy ${price(avg.minBuy)}–${price(avg.maxBuy)} · sell ${price(avg.minSell)}–${price(avg.maxSell)} · on average ${price(avg.spread)} kr. apart` : 'No prices for this day',
+    ranges ? `Buy ${price(ranges.minBuy)}–${price(ranges.maxBuy)} · sell ${price(ranges.minSell)}–${price(ranges.maxSell)} · best sale − cheapest buy ${signed(ranges.maxSell - ranges.minBuy, 2)}` : 'No prices for this day',
     `<div class="chart-head">
       ${legend([{ label: 'Buy (full price)', color: 'var(--c-blue)', line: true }, { label: 'Sell', color: 'var(--c-violet)', line: true }])}
-      <label class="toggle"><input type="checkbox" data-action="averages"${state.averages ? ' checked' : ''}> Dashed lines: the day's average buy and sell price</label>
+      <label class="toggle"><input type="checkbox" data-action="price-lines"${state.priceLines ? ' checked' : ''}> Dashed lines: the day's cheapest buy and best sale</label>
     </div>
-    ${state.averages && avg ? `<p class="muted small">Average buy ${price(avg.buy)} · average sell ${price(avg.sell)} kr./kWh · spread ${price(avg.spread)} kr.: on average a kWh bought costs this much more than a kWh sold earns.</p>` : ''}
+    ${state.priceLines && trade ? tradeText(trade) : ''}
     ${sp.prices}`);
   const peak = (rows) => Math.max(level(start.energy), ...rows.map((r) => level(r.energy)));
   const endToday = level(today[today.length - 1].energy);
@@ -1138,7 +1150,7 @@ function ownerDay(step, facts) {
       <p class="panel-title">Smart software: battery content by origin, % of capacity</p>${originLegend}${sp.level}
       <p class="panel-title">Today (manual): battery content by origin, % of capacity</p>${originLegend}${tp.level}
     </details>
-    ${rulesHtml(breakEven(cfg, dayRows.filter((d) => Number.isFinite(d.buy))))}
+    ${rulesHtml(be)}
     <details class="more"><summary>Hour by hour, side by side</summary><div class="table-wrap"><table>
       <thead><tr><th>Hour</th><th>Buy</th><th>Sell</th><th>Solar</th><th>House</th><th>Today does</th><th>Level</th><th>Smart does</th><th>Level</th><th>Smart − today</th></tr></thead>
       <tbody>${table}</tbody></table></div><p class="hint">Prices in kr./kWh, energy in kWh. "Smart − today" is the hour's cash difference after wear.</p></details>`;
@@ -1353,9 +1365,9 @@ function onChange(event) {
   } else if (action === 'goto' && el.value) {
     state.view.date = el.value;
     renderExplorer();
-  } else if (action === 'averages') {
-    state.averages = el.checked;
-    save('lab.averages', state.averages);
+  } else if (action === 'price-lines') {
+    state.priceLines = el.checked;
+    save('lab.priceLines', state.priceLines);
     renderExplorer();
   }
 }

@@ -48,6 +48,7 @@ Work outside the app, in its own folder and spec, recorded as `lab-NN` sprints.
 | lab-05 | Step through weeks and months | [sprints/lab-05-period-stepping.md](sprints/lab-05-period-stepping.md) |
 | lab-06 | Fold the parts of a day | [sprints/lab-06-day-folds.md](sprints/lab-06-day-folds.md) |
 | lab-07 | Step across periods, folded charts, average prices | [sprints/lab-07-across-periods.md](sprints/lab-07-across-periods.md) |
+| lab-08 | Cheapest buy and best sale in the price chart | [sprints/lab-08-price-lines.md](sprints/lab-08-price-lines.md) |
 
 ## Not scheduled
 
