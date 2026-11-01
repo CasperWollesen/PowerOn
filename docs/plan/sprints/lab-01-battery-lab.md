@@ -33,7 +33,8 @@ and see, day by day, what smart selling and charging from the grid would have ea
 - [x] CSV import with a synthetic Solar.web-style file (Wh, Danish dates, SoC)
 - [ ] Import of a real Fronius Solar.web or Eloverblik export
 - [x] Service worker unchanged: the app's behaviour is unchanged, so no cache bump
-- [ ] Live site checked after deploy
+- [x] Live site checked after deploy: https://casperwollesen.github.io/PowerOn/battery-lab/
+      loads prices and irradiance from its real origin and shows the same result; the app is unchanged
 
 ## Result
 
