@@ -32,4 +32,6 @@ from day to day.
       parts closed stay closed when stepping to 30/10 and after a reload
 - [ ] No screenshot: the preview pane did not draw while the app was in the
       background; layout checked through computed styles instead
-- [ ] Live site checked after deploy
+- [x] Live site checked after deploy: 26/10 shows the same three summaries as
+      locally; a closed "why" part stays closed on 27/10; no console errors
+- [ ] Not checked on a real phone
