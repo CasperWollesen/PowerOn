@@ -34,7 +34,8 @@ is no longer misled by short periods scaled up to a year.
       week and month, Setup folding, 375 px; a headless 1280 px screenshot
 - [x] Found on the way: stromligning.dk answers 429 when many months are fetched at
       once; the page now retries and says so instead of silently using spot prices
-- [ ] Live site checked after deploy
+- [x] Live site checked after deploy: same figures as locally (+2 263 kr., 48 days
+      scoring 50+), no fetch errors, no console errors
 
 ## Result
 
