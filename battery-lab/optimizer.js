@@ -32,6 +32,8 @@ export function batteryConfig(settings) {
     margin: s.gridMargin,
     threshold: s.sellThreshold,
     manualBuyBelow: s.manualBuyBelow,
+    manualSellHours: s.manualSellHours,
+    manualSellFloor: s.manualSellFloor,
     step: s.stepKwh,
     curtail: s.curtail,
     planner: s.planner,
@@ -98,15 +100,25 @@ function gridLimitOf(gridCharging) {
 }
 
 /**
- * Dynamic programming over battery levels for hours [i0, i1).
- * Levels are eMin + k × step. Returns the level index at every hour boundary
- * (length i1 − i0 + 1), starting at the level nearest e0.
+ * Dynamic programming over battery levels for hours [i0, i1). Returns the stored
+ * energy at every hour boundary (length i1 − i0 + 1).
+ *
+ * Levels are eMin + k × step and the plan starts at the level nearest e0. With
+ * `anchored`, the levels are laid out from e0 itself, and with `endEnergy` the plan
+ * must end exactly there (the step is stretched slightly so both ends are levels);
+ * it then returns null when that end cannot be reached.
  */
 // @req LAB-07
-export function planWindow(inp, i0, i1, e0, cfg, gridCharging) {
+export function planWindow(inp, i0, i1, e0, cfg, gridCharging, { anchored = false, endEnergy = null } = {}) {
   const gridLimit = gridLimitOf(gridCharging);
-  const step = cfg.step;
-  const K = Math.floor((cfg.eMax - cfg.eMin) / step + EPS) + 1;
+  let step = cfg.step;
+  let lo = cfg.eMin;
+  if (anchored) {
+    const moves = endEnergy === null ? 0 : Math.round((endEnergy - e0) / step);
+    if (moves !== 0) step = Math.abs((endEnergy - e0) / moves);
+    lo = e0 - Math.floor((e0 - cfg.eMin) / step + EPS) * step;
+  }
+  const K = Math.floor((cfg.eMax - lo) / step + EPS) + 1;
   const up = Math.floor((cfg.pc * cfg.etaC) / step + EPS);
   const down = Math.floor(cfg.pd / cfg.etaD / step + EPS);
   const n = i1 - i0;
@@ -118,7 +130,11 @@ export function planWindow(inp, i0, i1, e0, cfg, gridCharging) {
   let minBuy = Infinity;
   for (let i = i0; i < i1; i++) if (inp.priced[i] && inp.buy[i] < minBuy) minBuy = inp.buy[i];
   const leftValue = Number.isFinite(minBuy) ? Math.max(0, cfg.etaD * (minBuy - cfg.wear)) : 0;
-  for (let k = 0; k < K; k++) next[k] = -leftValue * k * step;
+  const kEnd = endEnergy === null ? -1 : Math.round((endEnergy - lo) / step);
+  for (let k = 0; k < K; k++) {
+    if (kEnd >= 0 && kEnd < K) next[k] = k === kEnd ? 0 : Infinity;
+    else next[k] = -leftValue * k * step;
+  }
 
   for (let s = n - 1; s >= 0; s--) {
     const i = i0 + s;
@@ -152,14 +168,15 @@ export function planWindow(inp, i0, i1, e0, cfg, gridCharging) {
     [next, cur] = [cur, next];
   }
 
-  const levels = new Int32Array(n + 1);
-  let k = Math.min(K - 1, Math.max(0, Math.round((e0 - cfg.eMin) / step)));
-  levels[0] = k;
+  let k = Math.min(K - 1, Math.max(0, Math.round((e0 - lo) / step)));
+  if (!Number.isFinite(next[k])) return null;
+  const energy = new Float64Array(n + 1);
+  energy[0] = lo + k * step;
   for (let s = 0; s < n; s++) {
     k = choice[s * K + k];
-    levels[s + 1] = k;
+    energy[s + 1] = lo + k * step;
   }
-  return levels;
+  return energy;
 }
 
 /**
@@ -170,13 +187,8 @@ export function planWindow(inp, i0, i1, e0, cfg, gridCharging) {
 // @req LAB-07
 export function planPeriod(inp, cfg, gridCharging) {
   const n = inp.hours.length;
+  if (cfg.planner === 'hindsight') return planWindow(inp, 0, n, cfg.eStart, cfg, gridCharging);
   const energy = new Float64Array(n + 1);
-  const toEnergy = (k) => cfg.eMin + k * cfg.step;
-  if (cfg.planner === 'hindsight') {
-    const levels = planWindow(inp, 0, n, cfg.eStart, cfg, gridCharging);
-    for (let s = 0; s <= n; s++) energy[s] = toEnergy(levels[s]);
-    return energy;
-  }
   const dayStart = new Map();
   const planHours = [];
   inp.hours.forEach((h, i) => {
@@ -186,31 +198,62 @@ export function planPeriod(inp, cfg, gridCharging) {
   let e = cfg.eStart;
   let i = 0;
   let p = 0;
-  energy[0] = toEnergy(Math.round((e - cfg.eMin) / cfg.step));
+  energy[0] = startEnergy(cfg, 'smartGrid');
   while (i < n) {
     const { date, hour } = inp.hours[i];
     const horizon = dayStart.get(addDays(date, hour >= 13 ? 2 : 1)) ?? n;
     while (p < planHours.length && planHours[p] <= i) p++;
     const commit = Math.min(planHours[p] ?? n, horizon);
-    const levels = planWindow(inp, i, horizon, e, cfg, gridCharging);
-    for (let s = 1; s <= commit - i; s++) energy[i + s] = toEnergy(levels[s]);
+    const plan = planWindow(inp, i, horizon, e, cfg, gridCharging);
+    for (let s = 1; s <= commit - i; s++) energy[i + s] = plan[s];
     e = energy[commit];
     i = commit;
   }
   return energy;
 }
 
-/** dE per hour for the rule-based strategies (self-use, sell above a threshold). */
+/**
+ * The hours in which "Today (manual)" sells: each day's `manualSellHours` best sell
+ * prices, if they are at least `manualSellFloor`. Today's prices are known since
+ * yesterday 13:00, so a person can pick them.
+ */
+export function manualSellHours(inp, cfg) {
+  const mask = new Uint8Array(inp.hours.length);
+  const days = new Map();
+  inp.hours.forEach((h, i) => {
+    if (!inp.priced[i]) return;
+    if (!days.has(h.date)) days.set(h.date, []);
+    days.get(h.date).push(i);
+  });
+  for (const list of days.values()) {
+    list.sort((a, b) => inp.sell[b] - inp.sell[a] || a - b);
+    for (const i of list.slice(0, cfg.manualSellHours)) if (inp.sell[i] >= cfg.manualSellFloor) mask[i] = 1;
+  }
+  return mask;
+}
+
+/**
+ * dE per hour for the rule-based strategies. Every rule stores solar surplus and
+ * covers the house; on top of that:
+ *   threshold – sells at full power when the sell price is at or above the threshold;
+ *   manual    – sells at full power in the day's best hours (manualSellHours) and
+ *               fills up from the grid when the full buy price is nearly free.
+ */
 // @req LAB-06
-export function ruleDeltas(inp, cfg, withThreshold) {
+export function ruleDeltas(inp, cfg, rule = 'self') {
   const n = inp.hours.length;
   const deltas = new Float64Array(n);
+  const sellNow = rule === 'manual' ? manualSellHours(inp, cfg) : null;
   let e = cfg.eStart;
   for (let i = 0; i < n; i++) {
     if (!inp.priced[i]) continue;
     const surplus = inp.pv[i] - inp.load[i];
+    const sells = rule === 'threshold' ? inp.sell[i] >= cfg.threshold : rule === 'manual' && sellNow[i] === 1;
     let dE;
-    if (withThreshold && inp.sell[i] >= cfg.threshold) {
+    if (rule === 'manual' && inp.buy[i] <= cfg.manualBuyBelow) {
+      const headroom = Math.max(0, cfg.importKw - Math.max(0, -surplus)) + Math.max(0, surplus);
+      dE = Math.max(0, Math.min(cfg.pc, headroom, (cfg.eMax - e) / cfg.etaC)) * cfg.etaC;
+    } else if (sells) {
       const dout = Math.min(cfg.pd, (e - cfg.eMin) * cfg.etaD, Math.max(0, -surplus) + cfg.exportKw);
       dE = -dout / cfg.etaD;
     } else if (surplus > 0) {
@@ -236,20 +279,27 @@ export function runStrategy(inp, cfg, strategy) {
   let deltas;
   if (strategy === 'none' || strategy === 'nothing') {
     deltas = new Float64Array(n);
-  } else if (strategy === 'self' || strategy === 'threshold') {
-    deltas = ruleDeltas(inp, cfg, strategy === 'threshold');
+  } else if (strategy === 'self' || strategy === 'threshold' || strategy === 'manual') {
+    deltas = ruleDeltas(inp, cfg, strategy);
   } else {
-    const gridCharging = strategy === 'smartGrid' ? true : strategy === 'manual' ? cfg.manualBuyBelow : false;
-    const energy = planPeriod(inp, cfg, gridCharging);
+    const energy = planPeriod(inp, cfg, strategy === 'smartGrid');
     deltas = new Float64Array(n);
     for (let i = 0; i < n; i++) deltas[i] = energy[i + 1] - energy[i];
   }
 
-  let solarE = 0;
-  let gridE = 0;
-  let startE = startEnergy(cfg, strategy);
   const rows = new Array(n);
-  for (let i = 0; i < n; i++) {
+  buildRows(inp, cfg, deltas, 0, n, { solarE: 0, gridE: 0, startE: startEnergy(cfg, strategy) }, rows);
+  return { strategy, rows };
+}
+
+/**
+ * Rows for hours [from, to) from the energy change per hour, starting with the
+ * battery content split into solar, grid and start energy. Writes into `rows`.
+ */
+// @req LAB-08
+function buildRows(inp, cfg, deltas, from, to, pools, rows) {
+  let { solarE, gridE, startE } = pools;
+  for (let i = from; i < to; i++) {
     const dE = deltas[i];
     const f = hourFlows(inp.pv[i], inp.load[i], inp.buy[i], inp.sell[i], dE, { ...cfg, exportKw: cfg.exportKw + 1e-6, importKw: Infinity });
     let soldSolar = 0;
@@ -283,13 +333,56 @@ export function runStrategy(inp, cfg, strategy) {
       soldRevenue: f.batToGrid * inp.sell[i],
     };
   }
-  return { strategy, rows };
+}
+
+/**
+ * Smart control replayed one day at a time against "Today (manual)": every day
+ * starts and ends with the battery exactly where today's way had it, so the
+ * difference is what better decisions earn that day, and days add up.
+ * gridCharging as in planWindow. A day where the plan is not cheaper than
+ * `fallbackRows` (the optimiser moves in whole steps) keeps the fallback's hours:
+ * smart control can always do what the simpler way did. Returns rows aligned with the hours.
+ */
+// @req LAB-07 LAB-18
+export function runDays(inp, cfg, manualRows, gridCharging, fallbackRows = manualRows) {
+  const n = inp.hours.length;
+  const deltas = new Float64Array(n);
+  const rows = new Array(n);
+  const start = startEnergy(cfg, 'manual');
+  const dayCost = (list, from, to) => {
+    let sum = 0;
+    for (let i = from; i < to; i++) if (list[i].priced) sum += list[i].cost - list[i].revenue + list[i].wear;
+    return sum;
+  };
+  let from = 0;
+  while (from < n) {
+    let to = from + 1;
+    while (to < n && inp.hours[to].date === inp.hours[from].date) to++;
+    const before = from > 0 ? manualRows[from - 1] : { energy: start, solarE: 0, gridE: 0, startE: start };
+    const e0 = before.energy;
+    const e1 = manualRows[to - 1].energy;
+    // In whole steps the exact end level is sometimes out of reach; then the day keeps the fallback.
+    const plan = planWindow(inp, from, to, e0, cfg, gridCharging, { anchored: true, endEnergy: e1 });
+    if (plan) {
+      let e = e0;
+      for (let s = 1; s <= to - from; s++) {
+        deltas[from + s - 1] = plan[s] - e;
+        e = plan[s];
+      }
+      buildRows(inp, cfg, deltas, from, to, before, rows);
+    }
+    if (!plan || dayCost(rows, from, to) > dayCost(fallbackRows, from, to) - EPS) {
+      for (let i = from; i < to; i++) rows[i] = fallbackRows[i];
+    }
+    from = to;
+  }
+  return rows;
 }
 
 /** Stored energy at the period start: none without a battery, snapped to the optimiser's grid when planned. */
 export function startEnergy(cfg, strategy) {
   if (strategy === 'none' || strategy === 'nothing') return 0;
-  if (strategy === 'self' || strategy === 'threshold') return cfg.eStart;
+  if (strategy === 'self' || strategy === 'threshold' || strategy === 'manual') return cfg.eStart;
   return cfg.eMin + Math.round((cfg.eStart - cfg.eMin) / cfg.step) * cfg.step;
 }
 

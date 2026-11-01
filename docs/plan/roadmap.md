@@ -43,6 +43,7 @@ Work outside the app, in its own folder and spec, recorded as `lab-NN` sprints.
 |---|---|---|
 | lab-01 | Battery Lab: what grid charging would add to a solar battery | [sprints/lab-01-battery-lab.md](sprints/lab-01-battery-lab.md) |
 | lab-02 | Existing and new installation, the day in words | [sprints/lab-02-two-views.md](sprints/lab-02-two-views.md) |
+| lab-03 | Days you can compare, a score, and a simpler page | [sprints/lab-03-day-score.md](sprints/lab-03-day-score.md) |
 
 ## Not scheduled
 

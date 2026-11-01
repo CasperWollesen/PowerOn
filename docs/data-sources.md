@@ -64,6 +64,9 @@ GET https://stromligning.dk/api/suppliers/find?lat=55.86&long=9.85
   −0,0015 excl. VAT); `price.total` is the net per kWh.
 - Customer groups `c` and `C_egenproducent` have the same per-kWh tariffs; only the
   subscription differs.
+- Rate limited: many month requests in a row get **HTTP 429** (seen 2026-11-01 after
+  about 50 requests in a few minutes). The lab fetches two months at a time, retries
+  after 2, 4 and 8 seconds, and caches completed months.
 - `/suppliers/find` returns the grid company at a coordinate: Horsens → `konstant_c`
   (Konstant C - 151). API documentation: `https://stromligning.dk/api/docs/`.
 

@@ -127,6 +127,45 @@ export function levelLines({ width, hours, series, minPct, tips }) {
     + `${yAxis(scale, y, pad.l, pad.l + w, { zero: false })}${hourAxis(hours, x, band, height)}${floor}${lines}${hits}</svg></div>`;
 }
 
+/**
+ * One stacked bar per day, all parts positive: bars [{ label, parts: [{ value, color }],
+ * tip, date }]. A bar with a date opens that day on click.
+ */
+// @req LAB-18
+export function stackedBars({ width, height = 190, bars }) {
+  const pad = { l: 48, r: 10, t: 10, b: 24 };
+  const w = Math.max(120, width - pad.l - pad.r);
+  const h = height - pad.t - pad.b;
+  const n = bars.length;
+  const sums = bars.map((b) => b.parts.reduce((a, p) => a + Math.max(0, p.value), 0));
+  const scale = niceScale(0, Math.max(1, ...sums));
+  const y = (v) => pad.t + ((scale.max - v) / (scale.max - scale.min)) * h;
+  const band = w / Math.max(1, n);
+  const bw = Math.min(24, Math.max(1, band > 4 ? band - 2 : band));
+  const gap = bw >= 4 ? 1 : 0;
+  const every = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(w / 46))));
+  const marks = bars.map((b, i) => {
+    const x0 = pad.l + i * band + (band - bw) / 2;
+    const parts = b.parts.filter((p) => p.value > 0.005);
+    let base = 0;
+    const segments = parts.map((p, j) => {
+      const from = base;
+      base += p.value;
+      const top = j === parts.length - 1;
+      const y0 = y(from) - (j > 0 ? gap : 0);
+      const y1 = y(base);
+      if (y0 - y1 < 0.5) return '';
+      return top ? `<path d="${barPath(x0, y0, y1, bw)}" fill="${p.color}"/>`
+        : `<rect x="${x0.toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" height="${(y0 - y1).toFixed(1)}" fill="${p.color}"/>`;
+    }).join('');
+    const label = i % every === 0 ? `<text x="${(x0 + bw / 2).toFixed(1)}" y="${height - 6}" text-anchor="middle">${esc(b.label)}</text>` : '';
+    const action = b.date ? ` data-action="open-day" data-date="${esc(b.date)}" style="cursor:pointer"` : '';
+    return `${segments}${label}<rect class="hit" x="${(pad.l + i * band).toFixed(1)}" y="${pad.t}" width="${band.toFixed(1)}" height="${h}" data-tip="${esc(b.tip)}"${action}/>`;
+  }).join('');
+  return `<div class="chart"><svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img">`
+    + `${yAxis(scale, y, pad.l, pad.l + w)}${marks}</svg></div>`;
+}
+
 function hourAxis(hours, x, band, height) {
   return hours.map((h, i) => (h.hour % 3 === 0 && (i === 0 || hours[i - 1].hour !== h.hour)
     ? `<text x="${(x(i) + band / 2).toFixed(1)}" y="${height - 6}" text-anchor="middle">${String(h.hour).padStart(2, '0')}</text>` : '')).join('');

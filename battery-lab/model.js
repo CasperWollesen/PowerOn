@@ -50,7 +50,7 @@ export function defaultSettings() {
       { kwhPerDay: 5, chargerKw: 11, plugIn: 17, ready: 7, smart: true },
     ],
     strategy: {
-      wear: 0.1, gridMargin: 0.05, sellThreshold: 1.5, manualBuyBelow: 0.3,
+      wear: 0.1, gridMargin: 0.05, sellThreshold: 1.5, manualBuyBelow: 0.3, manualSellHours: 4, manualSellFloor: 1, scoreFull: 25,
       planner: 'dayAhead', stepKwh: 0.5, curtail: true,
     },
     // Purchase prices incl. VAT for the new-installation view (LAB-16). Panels and
@@ -73,6 +73,7 @@ const BOUNDS = {
   'cars.kwhPerDay': [0, 150], 'cars.chargerKw': [1, 50], 'cars.plugIn': [0, 23], 'cars.ready': [0, 23],
   'strategy.wear': [0, 5], 'strategy.gridMargin': [0, 5], 'strategy.sellThreshold': [-5, 20],
   'strategy.stepKwh': [0.1, 5], 'strategy.manualBuyBelow': [-5, 10],
+  'strategy.manualSellHours': [0, 24], 'strategy.manualSellFloor': [-5, 20], 'strategy.scoreFull': [1, 1000],
   'invest.panelPerKwp': [0, 100000], 'invest.inverter': [0, 1000000], 'invest.batteryPerKwh': [0, 100000],
   'invest.electrician': [0, 1000000], 'invest.other': [0, 1000000],
 };

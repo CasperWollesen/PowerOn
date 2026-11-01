@@ -35,6 +35,25 @@ async function openCache() {
   }
 }
 
+/**
+ * fetch that waits and retries when stromligning.dk says "too many requests" (429)
+ * or the network hiccups: after 2, 4 and 8 seconds, or the server's Retry-After.
+ */
+async function fetchPolitely(url) {
+  for (let attempt = 0; ; attempt++) {
+    let response = null;
+    try {
+      response = await fetch(url);
+    } catch (err) {
+      if (attempt >= 3) throw err;
+    }
+    if (response && (response.status !== 429 || attempt >= 3)) return response;
+    const retryAfter = Number(response?.headers.get('retry-after'));
+    const wait = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter, 20) * 1000 : 2000 * 2 ** attempt;
+    await new Promise((resolve) => setTimeout(resolve, wait));
+  }
+}
+
 /** JSON from a URL, compacted by `pack`; completed months come from the cache. */
 async function monthJson(url, complete, pack) {
   const cache = complete ? await openCache() : null;
@@ -46,10 +65,10 @@ async function monthJson(url, complete, pack) {
       // fall through to the network
     }
   }
-  const response = await fetch(url);
+  const response = await fetchPolitely(url);
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new Error(`${new URL(url).pathname}: HTTP ${response.status}${body?.error ? ` – ${body.error}` : ''}`);
+    throw new Error(`HTTP ${response.status}${response.status === 429 ? ' (too many requests – try again in a minute)' : ''}${body?.error ? ` – ${body.error}` : ''}`);
   }
   const packed = pack(await response.json());
   if (cache && packed.length) {
@@ -119,7 +138,7 @@ export async function loadPrices(gridCompany, fromDate, toDate, { onProgress } =
       onProgress?.(++done, tasks.length);
     }
   }
-  await Promise.all(Array.from({ length: Math.min(4, tasks.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(2, tasks.length) }, worker));
   return { buy, sell, errors };
 }
 

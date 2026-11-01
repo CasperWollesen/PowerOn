@@ -266,6 +266,26 @@ td .key { display: inline-block; width: 10px; height: 10px; border-radius: 3px; 
 .why li { margin: 3px 0; }
 .headline { font-size: 1.05rem; font-weight: 600; margin: 8px 0; }
 
+/* Collapsible Setup (LAB-13) */
+details.setup > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 18px 1fr; gap: 2px 8px; align-items: baseline; }
+details.setup > summary::-webkit-details-marker { display: none; }
+details.setup > summary::before { content: "›"; color: var(--muted); font-size: 1.3rem; line-height: 1; transition: transform 0.15s; grid-row: span 2; }
+details.setup[open] > summary::before { transform: rotate(90deg); }
+details.setup > summary h2 { margin: 0; }
+details.setup > summary .sum { grid-column: 2; color: var(--muted); font-size: 0.88rem; }
+details.setup > .body { margin-top: 10px; }
+
+/* Day score (LAB-18) */
+.score { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.score .meter { width: 48px; height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; display: inline-block; }
+.score .meter i { display: block; height: 100%; background: var(--c-blue); border-radius: 3px; }
+.score b { min-width: 2ch; text-align: right; }
+.score.big .meter { width: 90px; height: 8px; }
+.score.big b { font-size: 1.1rem; }
+.day-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 6px 0; }
+.day-head .headline { margin: 0; }
+.subtle { color: var(--muted); font-size: 0.86rem; }
+
 footer { color: var(--muted); font-size: 0.82rem; margin-top: 20px; }
 
 @media (max-width: 560px) {

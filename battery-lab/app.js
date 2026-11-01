@@ -9,14 +9,14 @@ import {
   defaultSettings, normalizeSettings, buildHours, priceSeries, solarSeries, houseSeries,
   heatPumpSeries, carSeries, addSeries,
 } from './model.js';
-import { STRATEGIES, batteryConfig, runStrategy, hourAction, startEnergy } from './optimizer.js';
+import { STRATEGIES, batteryConfig, runStrategy, runDays, hourAction, startEnergy } from './optimizer.js';
 import {
   totals, dayRanges, stepRange, shiftStep, cumulativeSaving, saving, breakEven, perYear, dayStory,
-  compareRuns, investment, paybackYears, isoWeek,
+  compareRuns, investment, paybackYears, isoWeek, dayExtras,
 } from './summary.js';
 import { parseCsv, describeCsv, toHourly, completeHours, coverage, actualRows, ROLES, UNITS } from './import.js';
 import { loadPrices, loadWeather, getGridCompanies } from './data.js';
-import { lineChart, barChart, dayPanels, levelLines, legend } from './charts.js';
+import { lineChart, barChart, stackedBars, dayPanels, levelLines, legend } from './charts.js';
 
 const MIN_DATE = '2023-01-01';
 const MAX_DAYS = 1100;
@@ -27,9 +27,11 @@ const INFO = {
   none: { label: 'Solar, no battery', color: 'var(--c-aqua)', text: 'Solar covers the house; the rest is sold.' },
   self: { label: 'Solar self-use', color: 'var(--c-yellow)', text: 'Stores solar surplus and covers the house. Never sells from the battery, never buys into it. What a hybrid inverter does out of the box.' },
   threshold: { label: 'Sell above threshold', color: 'var(--c-green)', text: 'Self-use, plus selling from the battery at full power whenever the sell price is at or above the threshold.' },
-  manual: { label: 'Today (manual)', color: 'var(--c-orange)', text: 'Stored solar is sold at the best hours; the battery is only topped up from the grid when the full price is at or below the "nearly free" limit. Modelled with perfect timing, so it is a generous picture of manual control.' },
+  manual: { label: 'Today (manual)', color: 'var(--c-orange)', text: 'A fixed daily rule: the battery stores solar and covers the house, sells at full power in the day\'s best hours when the price is high enough, and is only topped up from the grid when power is nearly free.' },
   smartSolar: { label: 'Smart, solar only', color: 'var(--c-violet)', text: 'Plans charging and selling every day at 13:00 when tomorrow\'s prices are out, but never lets grid power into the battery.' },
   smartGrid: { label: 'Smart software', color: 'var(--c-blue)', text: 'Plans every day at 13:00 when tomorrow\'s prices are out, and also buys power into the battery whenever that pays after losses, wear and margin.' },
+  daySmart: { label: 'Smart software', color: 'var(--c-blue)', text: 'Day by day: starts and ends each day at today\'s battery level, buys from the grid whenever that pays.' },
+  dayTiming: { label: 'Better timing', color: 'var(--c-yellow)', text: 'Day by day: the same kind of moves as today, at better hours.' },
   actual: { label: 'Actual (imported)', color: 'var(--c-magenta)', text: 'What the imported meter data says was bought and sold, priced the same way.' },
 };
 const BUYER_LABELS = { none: 'Solar only', self: 'Solar + battery, inverter self-use', smartGrid: 'Solar + battery, smart software' };
@@ -214,7 +216,8 @@ function groupSummaries() {
     solar: arrays.length ? arrays.map((a) => `${num(a.kwp, 1).replace(/,0$/, '')} kWp ${azimuthName(a.azimuth)} ${num(a.tilt, 0)}°`).join(' + ') + ` · PR ${num(s.solar.performanceRatio, 0)} %` : 'No solar',
     house: `House ${num(s.house.annualKwh, 0)} kWh/yr · heat pump ${num(s.house.heatPumpKwh, 0)} kWh/yr · cars ${carText || 'none'}${carText ? ' kWh/day' : ''}`,
     prices: `${companyName(s.prices.gridCompany)} (${s.prices.area}) · markup ${price(s.prices.buyMarkup)} · sell fee ${price(s.prices.sellFee)} · tax ${s.prices.taxOverride === null ? 'as charged' : `${price(s.prices.taxOverride)} kr./kWh`} · export ${num(s.grid.exportKw, 0)} kW`,
-    strategy: `Today tops up at ≤ ${price(s.strategy.manualBuyBelow)} kr./kWh · wear ${price(s.strategy.wear)} · margin ${price(s.strategy.gridMargin)} · ${s.strategy.planner === 'dayAhead' ? 'day-ahead planner' : 'hindsight planner'}`,
+    strategy: `Today sells in the ${num(s.strategy.manualSellHours, 0)} best hours at ≥ ${price(s.strategy.manualSellFloor)}, buys at ≤ ${price(s.strategy.manualBuyBelow)} · wear ${price(s.strategy.wear)} · margin ${price(s.strategy.gridMargin)} · score 100 at ${num(s.strategy.scoreFull, 0)} kr.`,
+    setup: `${num(b.capacityKwh, 0)} kWh battery · ${arrays.length ? `${num(inv.kwp, 1).replace(/,0$/, '')} kWp solar` : 'no solar'} · ${companyName(s.prices.gridCompany)} · ${state.mode === 'buyer' ? `investment ${money(inv.withBattery)}` : `today sells in the ${num(s.strategy.manualSellHours, 0)} best hours`}`,
     invest: `${money(inv.withBattery)} for ${num(inv.kwp, 1).replace(/,0$/, '')} kWp and ${num(b.capacityKwh, 0)} kWh · solar only ${money(inv.solarOnly)}`,
     data: state.imports.length ? `${state.imports.length} file${state.imports.length > 1 ? 's' : ''} loaded${state.sim?.coverage ? ` · ${num(state.sim.coverage.hours, 0)} hours in the period` : ''}` : 'No files loaded – everything is modelled',
   };
@@ -290,7 +293,10 @@ function settingsHtml() {
     <div class="row"><button data-action="tax-2028">Try the 2028 tax (≈ ${price(TAX_2028)} kr./kWh)</button><button data-action="tax-actual">Tax as charged</button></div>
     <p class="hint">Buy price = (spot + Energinet tariffs + grid tariff + electricity tax + markup) × 1,25 VAT. Sell price = spot − production tariffs − sell fee, no VAT. The electricity tax is 0,008 kr./kWh in 2026 and 2027 and returns to roughly ${price(TAX_2028)} from 2028 (60,9 øre at 2015 level, indexed – an estimate). Subscriptions are left out: they are the same in every strategy.</p>`)}
     ${group('strategy', 'How it is run, wear and margin', `<div class="fields">
+      ${selectNumber('strategy.manualSellHours', "Today: sells in the day's best", Array.from({ length: 13 }, (_, h) => [h, `${h} hour${h === 1 ? '' : 's'}`]))}
+      ${field('strategy.manualSellFloor', 'Today: only when the sell price is at least', { unit: 'kr./kWh', assumed: true })}
       ${field('strategy.manualBuyBelow', 'Today: tops up from the grid at or below (full price)', { unit: 'kr./kWh', assumed: true })}
+      ${field('strategy.scoreFull', 'Day score 100 at', { unit: 'kr. extra that day' })}
       ${field('strategy.wear', 'Battery wear per kWh delivered', { unit: 'kr./kWh' })}
       ${field('strategy.gridMargin', 'Extra margin before buying to store', { unit: 'kr./kWh' })}
       ${field('strategy.sellThreshold', 'Threshold for "Sell above threshold"', { unit: 'kr./kWh' })}
@@ -298,7 +304,7 @@ function settingsHtml() {
       ${field('strategy.stepKwh', 'Optimiser step', { unit: 'kWh' })}
       ${check('strategy.curtail', 'Curtail solar when the sell price is negative')}
     </div>
-    <p class="hint">"Today" sells stored solar at the best hours and only buys into the battery when power is nearly free, like a windy night. The lab gives it perfect timing, which no person manages every day.</p>
+    <p class="hint">"Today" is a rule a person can follow with the day's prices in an app: keep the battery for solar and the house, sell at full power in the best hours of the day when the price is good, and fill up from the grid only when power is nearly free, like a windy night.</p>
     <p class="hint" data-rule>${ruleOfThumb()}</p>
     <p class="sub">Wear calculator</p>
     <div class="fields">
@@ -420,7 +426,7 @@ async function calculate() {
       if (generation !== state.generation) return;
       if (!prices.buy.length) throw new Error(prices.errors[0] ?? 'No prices returned for this period.');
       state.data.prices = prices;
-      state.data.pricesKey = keys.prices;
+      state.data.pricesKey = prices.errors.length ? '' : keys.prices;
     }
     if (state.data.weatherKey !== keys.weather) {
       setStatus('loading', 'Loading solar irradiance…', 0.9);
@@ -490,22 +496,33 @@ function simulate() {
   const results = {};
   for (const id of STRATEGIES) results[id] = runStrategy(inp, cfg, id).rows;
   if (actual) results.actual = actual;
+  results.dayTiming = runDays(inp, cfg, results.manual, cfg.manualBuyBelow);
+  results.daySmart = runDays(inp, cfg, results.manual, true, results.dayTiming);
+  const days = dayRanges(hours);
+  const extras = dayExtras(days, results.manual, results.dayTiming, results.daySmart, s.strategy.scoreFull);
 
-  // The same hours with the electricity tax from 2028, totals only.
+  // The same hours with the electricity tax from 2028: totals, and the day-by-day extra.
   let alt = null;
+  let altDays = null;
   if (s.prices.taxOverride === null) {
     const later = priceSeries(hours, state.data.prices.buy, state.data.prices.sell, { ...s.prices, taxOverride: TAX_2028 });
     const inpLater = { ...inp, buy: later.buy };
     alt = {};
+    const laterRows = {};
     for (const id of ['nothing', 'none', 'self', 'manual', 'smartGrid']) {
-      alt[id] = totals(runStrategy(inpLater, cfg, id).rows, 0, hours.length, { usable });
+      laterRows[id] = runStrategy(inpLater, cfg, id).rows;
+      alt[id] = totals(laterRows[id], 0, hours.length, { usable });
     }
+    const timing = runDays(inpLater, cfg, laterRows.manual, cfg.manualBuyBelow);
+    const smart = runDays(inpLater, cfg, laterRows.manual, true, timing);
+    const list = dayExtras(days, laterRows.manual, timing, smart, s.strategy.scoreFull);
+    altDays = ['extra', 'timing', 'grid'].reduce((o, k) => ({ ...o, [k]: list.reduce((a, e) => a + e[k], 0) }), {});
   }
   const kwp = s.solar.arrays.reduce((a, b) => a + b.kwp, 0);
   const pvTotal = pv.reduce((a, b) => a + b, 0);
   return {
-    hours, inp, cfg, prices, results, mask, alt, coverage: cov, usable,
-    days: dayRanges(hours),
+    hours, inp, cfg, prices, results, mask, alt, altDays, extras, coverage: cov, usable,
+    days,
     solarMissing: solar.missing,
     pvTotal,
     yieldPerKwp: kwp > 0 ? pvTotal / kwp : 0,
@@ -558,10 +575,14 @@ function renderPage() {
       <button data-action="mode" data-mode="buyer" aria-pressed="${!owner}">New installation</button>
     </div>
     <section class="card" id="setup">
-      <h2>Setup</h2>
-      <p class="hint">The defaults describe a reference household near Horsens: a 60 kWh battery built from an electric car's battery, kept between 20 % and 100 %, a 10 kW inverter, solar panels, a house and two electric cars. <span class="flag">⚑</span> marks guesses – replace them with the real numbers.</p>
-      <div id="settings">${settingsHtml()}</div>
-      <div class="row" style="margin-top:10px"><button data-action="reset">Reset to defaults</button></div>
+      <details class="setup"${load('lab.setupOpen') === true ? ' open' : ''}>
+        <summary><h2>Setup</h2><span class="sum" data-sum="setup">${esc(groupSummaries().setup)}</span></summary>
+        <div class="body">
+          <p class="hint">The defaults describe a reference household near Horsens: a 60 kWh battery built from an electric car's battery, kept between 20 % and 100 %, a 10 kW inverter, solar panels, a house and two electric cars. <span class="flag">⚑</span> marks guesses – replace them with the real numbers.</p>
+          <div id="settings">${settingsHtml()}</div>
+          <div class="row" style="margin-top:10px"><button data-action="reset">Reset to defaults</button></div>
+        </div>
+      </details>
     </section>
     <section class="card" id="period-card">
       <h2>Period</h2>
@@ -583,6 +604,7 @@ function renderPage() {
     <section class="card" id="explorer"></section>
     <section class="card" id="method">${methodHtml()}</section>
     <footer>Prices: <a href="https://stromligning.dk/">stromligning.dk</a> · Solar irradiance and temperature: <a href="https://open-meteo.com/">Open-Meteo</a> (CC BY 4.0) · Specification: <a href="../docs/spec/battery-lab.md">LAB</a> · A side page of <a href="../">PowerOn</a>. Estimates for deciding, not an invoice and not advice.</footer>`;
+  $('#setup details.setup').addEventListener('toggle', (event) => save('lab.setupOpen', event.currentTarget.open));
   setStatus(state.status.kind, state.status.text, state.status.progress);
   renderResults();
   renderExplorer();
@@ -625,9 +647,10 @@ function renderResults() {
   el.innerHTML = state.mode === 'owner' ? ownerResults(contentWidth(el)) : buyerResults(contentWidth(el));
 }
 
-function notices(sim) {
+function notices(sim, { period = true } = {}) {
   const out = [];
-  if (sim.days.length < 360) out.push(`The period is ${num(sim.days.length, 0)} days. Per-year figures are scaled from it and depend on the season; use 12 months for a fair year.`);
+  if (period && sim.days.length < 360) out.push(`The period is ${num(sim.days.length, 0)} days. Per-year figures are scaled from it and depend on the season; use 12 months for a fair year.`);
+  for (const error of state.data.prices?.errors ?? []) out.push(`stromligning.dk: ${error}. Press Calculate again later to fill the gap.`);
   if (sim.prices.missing) out.push(`${num(sim.prices.missing, 0)} hours have no price; the battery idles in them and they are left out of every total.`);
   if (sim.prices.sellFromSpot) out.push(`${num(sim.prices.sellFromSpot, 0)} hours have no production price; the spot price is used as sell price there.`);
   if (sim.solarMissing) out.push(`${num(sim.solarMissing, 0)} hours have no irradiance data; solar counts as zero there.`);
@@ -640,59 +663,66 @@ function tile(title, value, note) {
   return `<div class="tile"><div class="label">${title}</div><div class="value num">${value}</div><div class="note">${note}</div></div>`;
 }
 
-// @req LAB-09 LAB-15
+// @req LAB-09 LAB-15 LAB-18
 function ownerResults(width) {
   const sim = state.sim;
   const n = sim.hours.length;
-  const days = sim.days.length;
-  const T = Object.fromEntries([...OWNER_ALL, ...(sim.results.actual ? ['actual'] : [])].map((id) => [id, strategyTotals(id, 0, n)]));
-  const extra = T.manual.netWithWear - T.smartGrid.netWithWear;
-  const later = sim.alt ? perYear(sim.alt.manual.netWithWear - sim.alt.smartGrid.netWithWear, days) : null;
-  const cmp = compareRuns(sim.results.manual, sim.results.smartGrid, 0, n);
-  const m = cmp.base;
-  const g = cmp.other;
-  const buyingDays = sim.days.filter((d) => totals(sim.results.smartGrid, d.from, d.to).gridToBat > 0.05).length;
-  const limit = state.settings.strategy.manualBuyBelow;
+  const ex = sim.extras;
+  const days = ex.length;
+  const s = state.settings.strategy;
+  const sum = (k) => ex.reduce((a, e) => a + e[k], 0);
+  const total = sum('extra');
+  const good = ex.filter((e) => e.score >= 50);
+  const best = [...ex].sort((a, b) => b.extra - a.extra).slice(0, 10).filter((e) => e.extra >= 0.5);
+  const later = sim.altDays;
+  const yearText = days >= 300
+    ? `That is about <b>${signed(perYear(total, days))}</b> a year.`
+    : `${num(days, 0)} days say little about a whole year, so nothing is scaled up – choose 12 months for a yearly figure.`;
+  const bars = ex.map((e) => ({
+    label: shortDate(e.date), date: e.date,
+    parts: [{ value: e.timing, color: 'var(--c-yellow)' }, { value: e.grid, color: 'var(--c-blue)' }],
+    tip: `${longDate(e.date)} · score ${e.score}\nSmart software: ${signed(e.extra, 2)}\n  better timing ${signed(e.timing, 2)}\n  buying from the grid ${signed(e.grid, 2)}\nClick to open the day`,
+  }));
+  const bestRows = best.map((e) => `<tr class="clickable" data-action="open-day" data-date="${e.date}"><td>${weekdayName(e.date).slice(0, 3)} ${shortDate(e.date)} ${e.date.slice(0, 4)}</td>
+    <td>${scoreHtml(e.score)}</td><td class="pos">${signed(e.extra, 2)}</td><td>${signed(e.timing, 2)}</td><td>${signed(e.grid, 2)}</td></tr>`).join('');
 
+  const T = Object.fromEntries([...OWNER_ALL, ...(sim.results.actual ? ['actual'] : [])].map((id) => [id, strategyTotals(id, 0, n)]));
   let actualText = '';
-  const series = [{ label: 'Smart software over today', color: INFO.smartGrid.color, values: cumulativeSaving(sim.days, sim.results.smartGrid, sim.results.manual).map((p) => p.value) }];
   if (T.actual) {
     const vsActual = saving(sim.results.smartGrid, sim.results.actual, 0, n, sim.mask);
-    actualText = `<p class="notice small">Against the imported measurements (${num(T.actual.hours, 0)} hours with grid data): smart software would have earned <b>${signed(vsActual)}</b> more than what really happened${T.actual.hours >= 24 * 28 ? `, about ${signed(perYear(vsActual, T.actual.hours / 24))} per year` : ''}. Over a few days the battery's level at the start decides most of the difference; compare whole weeks or months.</p>`;
-    series.push({ label: 'Smart software over actual', color: INFO.actual.color, values: cumulativeSaving(sim.days, sim.results.smartGrid, sim.results.actual, sim.mask).map((p) => p.value) });
+    actualText = `<p class="notice small">Against the imported measurements (${num(T.actual.hours, 0)} hours with grid data): smart software, planning across midnight, would have earned <b>${signed(vsActual)}</b> more than what really happened. Over a few days the battery's level at the start decides most of that; compare whole weeks or months.</p>`;
   }
-  const labels = sim.days.map((d) => shortDate(d.date));
-  const tips = sim.days.map((d, i) => `${longDate(d.date)}\nSince ${shortDate(sim.days[0].date)}:\n${series.map((s) => `${s.label}: ${signed(s.values[i])}`).join('\n')}`);
-
   const row = (id) => {
     const t = T[id];
     const vsToday = T.manual.netWithWear - t.netWithWear;
-    return `<tr class="${id === 'smartGrid' ? 'highlight' : ''}"><td>${key(id)}${esc(label(id))}</td><td>${money(t.netWithWear)}</td>
+    return `<tr><td>${key(id)}${esc(label(id))}</td><td>${money(t.netWithWear)}</td>
       <td class="${vsToday > 0.5 ? 'pos' : vsToday < -0.5 ? 'neg' : ''}">${id === 'manual' ? '–' : signed(vsToday)}</td>
       <td>${energy(t.gridToBat)}</td><td>${energy(t.batToGrid)}</td><td>${num(t.cyclesPerYear, 0)}</td><td>${money(t.wear)}</td></tr>`;
   };
   const head = '<thead><tr><th>Strategy</th><th>Cost incl. wear (− = income)</th><th>Compared with today</th><th>Bought to battery</th><th>Sold from battery</th><th>Cycles/yr</th><th>Wear</th></tr></thead>';
+  const dayTotals = { today: strategyTotals('manual', 0, n), smart: strategyTotals('daySmart', 0, n) };
 
   return `
     <h2>Result · ${periodText(sim)}</h2>
-    <div class="hero"><span class="value num">${signed(perYear(extra, days))}</span>
-      <span class="label">per year: what smart software would earn on top of today's manual way – ${signed(extra)} over these ${num(days, 0)} days.</span></div>
-    ${later !== null ? `<p>With the electricity tax from 2028 (≈ ${price(TAX_2028)} kr./kWh) the extra is about <b>${signed(later)}</b> per year: buying from the grid to sell again mostly stops paying, moving the house's own use to cheap hours still does.</p>` : ''}
-    <p class="muted small">"Today" is modelled generously: perfect timing for selling, and topping up from the grid at or below ${price(limit)} kr./kWh. Real manual control misses days, so the true extra is likely higher. Imported measurements give the real comparison.</p>
-    ${actualText}
-    ${notices(sim)}
+    <div class="hero"><span class="value num">${signed(total)}</span>
+      <span class="label">more with smart software than today's way, over these ${num(days, 0)} days – on average <b>${signed(total / days, 2)}</b> a day.</span></div>
     <div class="tiles">
-      ${tile('Bought into the battery', `${energy(m.gridToBat)} → ${energy(g.gridToBat)}`, `today → smart · smart buys on ${num(buyingDays, 0)} of ${num(days, 0)} days${g.avgBuy !== null ? `, on average at ${price(g.avgBuy)} kr./kWh` : ''}`)}
-      ${tile('Sold from the battery', `${energy(m.batToGrid)} → ${energy(g.batToGrid)}`, `${money(m.soldRevenue)} → ${money(g.soldRevenue)} · ${pct(g.batToGrid > 0 ? (100 * g.soldGrid) / g.batToGrid : 0)} of smart's sales were bought from the grid`)}
-      ${tile('Battery cycles per year', `${num(T.manual.cyclesPerYear, 0)} → ${num(T.smartGrid.cyclesPerYear, 0)}`, `extra wear ${money(perYear(g.wear - m.wear, days))} per year, already counted`)}
-      ${tile('Battery covers the house', `${energy(m.batToLoad)} → ${energy(g.batToLoad)}`, 'kWh the house did not have to buy')}
+      ${tile('Better timing, same moves', signed(sum('timing')), 'stored solar sold and the house covered at better hours – no extra buying')}
+      ${tile('Buying from the grid to store', signed(sum('grid')), 'cheap power into the battery, sold or used when it is dear')}
+      ${tile('Days worth a look', `${num(good.length, 0)} of ${num(days, 0)}`, `score 50 or more: at least ${money(s.scoreFull / 2)} to win`)}
     </div>
-    <h3>Smart software over today, day by day</h3>
-    ${series.length > 1 ? legend(series.map((s) => ({ label: s.label, color: s.color, line: true }))) : ''}
-    ${lineChart({ width, series, labels, tips })}
-    <h3>Today and smart software</h3>
-    <div class="table-wrap"><table>${head}<tbody>${row('manual')}${row('smartGrid')}</tbody></table></div>
-    <details class="more"><summary>Other ways to run the same battery</summary>
+    <p>${yearText}${later ? ` With the electricity tax from 2028 the same days give <b>${signed(later.extra)}</b> (better timing ${signed(later.timing)}, buying from the grid ${signed(later.grid)}).` : ''}</p>
+    <p class="muted small">"Today" is the rule under Setup → How it is run: the battery stores solar and covers the house, sells in the day's ${num(s.manualSellHours, 0)} best hours when it gets ${price(s.manualSellFloor)} kr./kWh or more, and buys from the grid only at ${price(s.manualBuyBelow)} or less. Every day smart software starts and ends with the battery at the same level as today, so the difference is pure cash.</p>
+    ${actualText}
+    ${notices(sim, { period: false })}
+    <h3>What each day could have earned extra</h3>
+    ${legend([{ label: 'Better timing', color: 'var(--c-yellow)' }, { label: 'Buying from the grid', color: 'var(--c-blue)' }])}
+    ${stackedBars({ width, bars })}
+    <p class="muted small">Hover a day for the numbers, click it to open the day.</p>
+    ${best.length ? `<h3>The best days</h3><div class="table-wrap"><table><thead><tr><th>Day</th><th>Score</th><th>Smart software</th><th>Better timing</th><th>Buying from the grid</th></tr></thead><tbody>${bestRows}</tbody></table></div>` : ''}
+    <details class="more"><summary>Numbers behind it</summary>
+      <p class="small">Day by day over the period: today costs ${money(dayTotals.today.netWithWear)}, smart software ${money(dayTotals.smart.netWithWear)} (incl. wear, − = income). Smart software buys ${energy(dayTotals.smart.gridToBat)} into the battery against today's ${energy(dayTotals.today.gridToBat)}, and sells ${energy(dayTotals.smart.batToGrid)} against ${energy(dayTotals.today.batToGrid)}.</p>
+      <p class="small">Planning across midnight as well, with the battery free to end each day anywhere, the period gives: smart, solar only ${signed(T.manual.netWithWear - T.smartSolar.netWithWear)} and smart software ${signed(T.manual.netWithWear - T.smartGrid.netWithWear)} over today's way. That is a second estimate, usually a little higher, because energy can be carried from one day to the next.</p>
       <div class="table-wrap"><table>${head}<tbody>${OWNER_ALL.map(row).join('')}</tbody></table></div>
       <ul class="small">${OWNER_ALL.map((id) => `<li><b>${esc(label(id))}</b> – ${esc(INFO[id].text)}</li>`).join('')}</ul>
     </details>`;
@@ -773,7 +803,11 @@ function renderExplorer() {
     : v.unit === 'week' ? `Week ${isoWeek(step.first)} · ${shortDate(step.first)}–${shortDate(step.last)} ${step.last.slice(0, 4)}`
       : `${monthName(step.first)}${step.days.length < 28 ? ` (${shortDate(step.first)}–${shortDate(step.last)} in the period)` : ''}`;
   const unitButtons = [['day', 'Day'], ['week', 'Week'], ['month', 'Month']].map(([u, t]) => `<button data-action="unit" data-unit="${u}" aria-pressed="${v.unit === u}">${t}</button>`).join('');
-  const picker = owner ? '' : `<label class="row small">Details for <select data-action="strategy">${['none', 'self', 'smartGrid'].map((id) => `<option value="${id}"${id === v.strategy ? ' selected' : ''}>${esc(label(id))}</option>`).join('')}</select></label>`;
+  const goodPrev = owner && v.unit === 'day' ? goodDay(-1) : null;
+  const goodNext = owner && v.unit === 'day' ? goodDay(1) : null;
+  const goodButtons = owner && v.unit === 'day'
+    ? `<div class="stepper"><button data-action="good" data-date="${goodPrev ?? ''}"${goodPrev ? '' : ' disabled'} title="Previous day scoring 50 or more">‹ Previous 50+</button><button data-action="good" data-date="${goodNext ?? ''}"${goodNext ? '' : ' disabled'} title="Next day scoring 50 or more">Next 50+ ›</button></div>` : '';
+  const picker = owner ? goodButtons : `<label class="row small">Details for <select data-action="strategy">${['none', 'self', 'smartGrid'].map((id) => `<option value="${id}"${id === v.strategy ? ' selected' : ''}>${esc(label(id))}</option>`).join('')}</select></label>`;
 
   el.innerHTML = `
     <h2>Day by day</h2>
@@ -790,25 +824,45 @@ function renderExplorer() {
     ${owner ? ownerStep(step) : buyerStep(step)}`;
 }
 
+/** The nearest earlier (-1) or later (1) day scoring 50 or more, or null. */
+function goodDay(direction) {
+  const list = state.sim.extras;
+  const at = list.findIndex((e) => e.date === state.view.date);
+  for (let i = at + direction; i >= 0 && i < list.length; i += direction) if (list[i].score >= 50) return list[i].date;
+  return null;
+}
+
 // ------------------------------------------------ existing installation: steps
 
+function extrasIn(step) {
+  return state.sim.extras.filter((e) => e.from >= step.from && e.to <= step.to);
+}
+
+function scoreHtml(score, big = false) {
+  return `<span class="score${big ? ' big' : ''}" title="Score ${score} of 100"><span class="meter"><i style="width:${score}%"></i></span><b>${score}</b></span>`;
+}
+
+// @req LAB-10 LAB-18
 function ownerStep(step) {
   const sim = state.sim;
+  const list = extrasIn(step);
+  const sum = (key) => list.reduce((a, e) => a + e[key], 0);
+  const running = sim.extras.filter((e) => e.to <= step.to).reduce((a, e) => a + e.extra, 0);
+  const since = shortDate(sim.days[0].date);
   const unit = step.unit === 'day' ? 'this day' : step.unit === 'week' ? 'this week' : 'this month';
-  const ids = ['manual', 'smartGrid', ...(sim.results.actual ? ['actual'] : [])];
-  const rows = ids.map((id) => {
-    const mask = id === 'actual' ? sim.mask : null;
-    const t = strategyTotals(id, step.from, step.to, mask);
-    const run = strategyTotals(id, 0, step.to, mask);
-    return `<tr><td>${key(id)}${esc(label(id))}</td><td>${t.hours ? money(t.netWithWear, 2) : '–'}</td><td>${run.hours ? money(run.netWithWear, 0) : '–'}</td></tr>`;
-  }).join('');
-  const extra = saving(sim.results.smartGrid, sim.results.manual, step.from, step.to);
-  const running = saving(sim.results.smartGrid, sim.results.manual, 0, step.to);
   const actual = sim.results.actual && strategyTotals('actual', step.from, step.to, sim.mask).hours
-    ? ` · over actual ${signed(saving(sim.results.smartGrid, sim.results.actual, step.from, step.to, sim.mask), 2)}` : '';
-  return `<p class="headline">Smart software: <span class="${extra > 0.005 ? 'pos' : extra < -0.005 ? 'neg' : ''}">${signed(extra, 2)}</span> ${unit}${actual} · ${signed(running)} since ${shortDate(sim.days[0].date)}</p>
-    <div class="table-wrap"><table><thead><tr><th>Strategy</th><th>Cost incl. wear, ${unit} (− = income)</th><th>Since ${shortDate(sim.days[0].date)}</th></tr></thead><tbody>${rows}</tbody></table></div>
-    ${step.unit === 'day' ? ownerDay(step) : ownerDays(step)}`;
+    ? ` · against the imported measurements ${signed(saving(sim.results.smartGrid, sim.results.actual, step.from, step.to, sim.mask), 2)}` : '';
+  const parts = `better timing ${signed(sum('timing'), 2)} · buying from the grid ${signed(sum('grid'), 2)}`;
+  if (step.unit === 'day') {
+    const e = list[0];
+    return `<div class="day-head">${scoreHtml(e.score, true)}<p class="headline">Smart software: <span class="${e.extra > 0.005 ? 'pos' : ''}">${signed(e.extra, 2)}</span> this day</p></div>
+      <p class="subtle">${parts} · ${signed(running)} since ${since}${actual}</p>
+      ${ownerDay(step)}`;
+  }
+  const good = list.filter((e) => e.score >= 50).length;
+  return `<p class="headline">Smart software: <span class="${sum('extra') > 0.005 ? 'pos' : ''}">${signed(sum('extra'), 2)}</span> ${unit}</p>
+    <p class="subtle">${parts} · ${num(good, 0)} day${good === 1 ? '' : 's'} scoring 50+ · ${signed(running)} since ${since}${actual}</p>
+    ${ownerDays(step, list)}`;
 }
 
 function before(rows, from, cfg, id) {
@@ -856,7 +910,7 @@ function storyHtml(id, blocks, start, t, cfg) {
 }
 
 // @req LAB-17
-function whyHtml(cmp, cfg) {
+function whyHtml(cmp, start, cfg) {
   const level = (e) => pct((100 * e) / cfg.capacity);
   const more = (v) => (v > 0 ? 'more' : 'less');
   const lines = [];
@@ -869,11 +923,10 @@ function whyHtml(cmp, cfg) {
   if (Math.abs(cmp.coveredMore) > 0.05) {
     lines.push(`It covers the house with ${energy(Math.abs(cmp.coveredMore), 1)} ${more(cmp.coveredMore)} from the battery instead of buying.`);
   }
-  if (!lines.length) lines.push('Both do practically the same today.');
+  if (!lines.length) lines.push('Smart software found nothing better than today\'s way on this day.');
   if (Math.abs(cmp.wearMore) > 0.005) lines.push(`Wear: ${money(Math.abs(cmp.wearMore), 2)} ${cmp.wearMore > 0 ? 'more' : 'less'}, already counted.`);
-  lines.push(`Battery at the end of the day: today ${level(cmp.base.endEnergy)}, smart ${level(cmp.other.endEnergy)}. What is left is used the next day, so part of a day's difference belongs to the day after.`);
-  const verb = cmp.extra >= 0 ? `earns ${money(cmp.extra, 2)} more` : `is ${money(-cmp.extra, 2)} behind`;
-  return `<div class="why"><b>Why smart software ${verb} this day</b><ul>${lines.map((l) => `<li>${l}</li>`).join('')}</ul></div>`;
+  lines.push(`Both start the day at ${level(start.energy)} and end it at ${level(cmp.base.endEnergy)}, so the difference is pure cash.`);
+  return `<div class="why"><b>Why smart software earns ${money(Math.max(0, cmp.extra), 2)} more this day</b><ul>${lines.map((l) => `<li>${l}</li>`).join('')}</ul></div>`;
 }
 
 // @req LAB-10 LAB-11 LAB-17
@@ -883,10 +936,9 @@ function ownerDay(step) {
   const { from, to } = step;
   const hours = sim.hours.slice(from, to);
   const today = sim.results.manual.slice(from, to);
-  const smart = sim.results.smartGrid.slice(from, to);
-  const todayStart = before(sim.results.manual, from, cfg, 'manual');
-  const smartStart = before(sim.results.smartGrid, from, cfg, 'smartGrid');
-  const cmp = compareRuns(sim.results.manual, sim.results.smartGrid, from, to);
+  const smart = sim.results.daySmart.slice(from, to);
+  const start = before(sim.results.manual, from, cfg, 'manual');
+  const cmp = compareRuns(sim.results.manual, sim.results.daySmart, from, to);
   const level = (e) => (100 * e) / cfg.capacity;
   const tips = hours.map((h, i) => `${hh(h.hour)}:00 · buy ${price(today[i].buy)} · sell ${price(today[i].sell)} kr./kWh`
     + `\nSolar ${num(today[i].pv, 1)} · house ${num(today[i].load, 1)} kWh`
@@ -894,13 +946,13 @@ function ownerDay(step) {
     + `\nSmart: ${does(smart[i])} · battery ${pct(level(smart[i].energy))}`
     + `\nSmart − today: ${signed(cashOf(smart[i]) - cashOf(today[i]), 2)}`);
   const width = contentWidth($('#explorer'));
-  const sp = dayPanels({ width, hours, rows: smart, before: smartStart, cfg, tips });
-  const tp = dayPanels({ width, hours, rows: today, before: todayStart, cfg, tips });
+  const sp = dayPanels({ width, hours, rows: smart, before: start, cfg, tips });
+  const tp = dayPanels({ width, hours, rows: today, before: start, cfg, tips });
   const levels = levelLines({
     width, hours, tips, minPct: state.settings.battery.minSocPct,
     series: [
-      { color: INFO.manual.color, values: [todayStart, ...today].map((r) => level(r.energy)) },
-      { color: INFO.smartGrid.color, values: [smartStart, ...smart].map((r) => level(r.energy)) },
+      { color: INFO.manual.color, values: [start, ...today].map((r) => level(r.energy)) },
+      { color: INFO.daySmart.color, values: [start, ...smart].map((r) => level(r.energy)) },
     ],
   });
   const flowLegend = legend([{ label: 'From solar', color: 'var(--c-yellow)' }, { label: 'From grid', color: 'var(--c-blue)' }, { label: 'To house', color: 'var(--c-aqua)' }, { label: 'Sold', color: 'var(--c-violet)' }]);
@@ -917,25 +969,22 @@ function ownerDay(step) {
 
   return `
     <div class="stories">
-      ${storyHtml('manual', dayStory(today, hours), todayStart, cmp.base, cfg)}
-      ${storyHtml('smartGrid', dayStory(smart, hours), smartStart, cmp.other, cfg)}
+      ${storyHtml('manual', dayStory(today, hours), start, cmp.base, cfg)}
+      ${storyHtml('daySmart', dayStory(smart, hours), start, cmp.other, cfg)}
     </div>
-    ${whyHtml(cmp, cfg)}
-    <p class="muted small">Hover or tap an hour in a chart to see both strategies.</p>
+    ${whyHtml(cmp, start, cfg)}
     <p class="panel-title">Prices, kr./kWh</p>
     ${legend([{ label: 'Buy (full price)', color: 'var(--c-blue)', line: true }, { label: 'Sell', color: 'var(--c-violet)', line: true }])}
     ${sp.prices}
     <p class="panel-title">Battery level, % of capacity</p>
-    ${legend([{ label: label('manual'), color: INFO.manual.color, line: true }, { label: label('smartGrid'), color: INFO.smartGrid.color, line: true }])}
+    ${legend([{ label: label('manual'), color: INFO.manual.color, line: true }, { label: label('daySmart'), color: INFO.daySmart.color, line: true }])}
     ${levels}
-    <p class="panel-title">Smart software: energy in and out of the battery, kWh (up = in, down = out)</p>
-    ${flowLegend}
-    ${sp.flows}
-    <details class="more"><summary>More charts: today's energy and where the stored energy came from</summary>
+    <p class="muted small">Hover or tap an hour to see both. Dashed line: lowest allowed level (${pct(state.settings.battery.minSocPct)}).</p>
+    <details class="more"><summary>More charts: energy in and out, and where the stored energy came from</summary>
+      <p class="panel-title">Smart software: energy in and out of the battery, kWh (up = in, down = out)</p>${flowLegend}${sp.flows}
       <p class="panel-title">Today (manual): energy in and out of the battery, kWh</p>${flowLegend}${tp.flows}
       <p class="panel-title">Smart software: battery content by origin, % of capacity</p>${originLegend}${sp.level}
       <p class="panel-title">Today (manual): battery content by origin, % of capacity</p>${originLegend}${tp.level}
-      <p class="muted small">Dashed line: lowest allowed level (${pct(state.settings.battery.minSocPct)}).</p>
     </details>
     ${rulesHtml(breakEven(cfg, dayRows.filter((d) => Number.isFinite(d.buy))))}
     <details class="more"><summary>Hour by hour, side by side</summary><div class="table-wrap"><table>
@@ -943,32 +992,30 @@ function ownerDay(step) {
       <tbody>${table}</tbody></table></div><p class="hint">Prices in kr./kWh, energy in kWh. "Smart − today" is the hour's cash difference after wear.</p></details>`;
 }
 
-// @req LAB-10
-function ownerDays(step) {
+// @req LAB-10 LAB-18
+function ownerDays(step, list) {
   const sim = state.sim;
   const width = contentWidth($('#explorer'));
-  const withActual = Boolean(sim.results.actual);
-  const bars = step.days.map((d) => {
-    const s = saving(sim.results.smartGrid, sim.results.manual, d.from, d.to);
-    return { label: shortDate(d.date), value: s, date: d.date, tip: `${longDate(d.date)}\nSmart software over today: ${signed(s, 2)}\nClick to open the day` };
-  });
-  const rows = step.days.map((d) => {
-    const t = totals(sim.results.manual, d.from, d.to).netWithWear;
-    const s = totals(sim.results.smartGrid, d.from, d.to).netWithWear;
-    const a = withActual ? totals(sim.results.actual, d.from, d.to, { mask: sim.mask }) : null;
-    return `<tr class="clickable" data-action="open-day" data-date="${d.date}"><td>${weekdayName(d.date).slice(0, 3)} ${shortDate(d.date)}</td>
-      <td>${money(t, 2)}</td><td>${money(s, 2)}</td><td class="${t - s > 0.005 ? 'pos' : t - s < -0.005 ? 'neg' : ''}">${signed(t - s, 2)}</td>
-      ${withActual ? `<td>${a.hours ? money(a.netWithWear, 2) : '–'}</td>` : ''}</tr>`;
+  const bars = list.map((e) => ({
+    label: shortDate(e.date), date: e.date,
+    parts: [{ value: e.timing, color: 'var(--c-yellow)' }, { value: e.grid, color: 'var(--c-blue)' }],
+    tip: `${longDate(e.date)} · score ${e.score}\nSmart software: ${signed(e.extra, 2)}\n  better timing ${signed(e.timing, 2)}\n  buying from the grid ${signed(e.grid, 2)}\nClick to open the day`,
+  }));
+  const rows = list.map((e) => {
+    const t = totals(sim.results.manual, e.from, e.to).netWithWear;
+    const s = totals(sim.results.daySmart, e.from, e.to).netWithWear;
+    return `<tr class="clickable" data-action="open-day" data-date="${e.date}"><td>${weekdayName(e.date).slice(0, 3)} ${shortDate(e.date)}</td>
+      <td>${scoreHtml(e.score)}</td><td>${money(t, 2)}</td><td>${money(s, 2)}</td><td class="${e.extra > 0.005 ? 'pos' : ''}">${signed(e.extra, 2)}</td></tr>`;
   }).join('');
   const t = totals(sim.results.manual, step.from, step.to).netWithWear;
-  const s = totals(sim.results.smartGrid, step.from, step.to).netWithWear;
-  const a = withActual ? totals(sim.results.actual, step.from, step.to, { mask: sim.mask }) : null;
-  return `<p class="panel-title">Smart software over today, per day, kr.</p>
-    ${barChart({ width, bars, color: INFO.smartGrid.color })}
+  const s = totals(sim.results.daySmart, step.from, step.to).netWithWear;
+  return `<p class="panel-title">What each day could have earned extra, kr.</p>
+    ${legend([{ label: 'Better timing', color: 'var(--c-yellow)' }, { label: 'Buying from the grid', color: 'var(--c-blue)' }])}
+    ${stackedBars({ width, bars })}
     <div class="table-wrap"><table>
-      <thead><tr><th>Day</th><th>${key('manual')}${esc(label('manual'))}</th><th>${key('smartGrid')}${esc(label('smartGrid'))}</th><th>Smart over today</th>${withActual ? `<th>${key('actual')}${esc(label('actual'))}</th>` : ''}</tr></thead>
-      <tbody>${rows}<tr class="highlight"><td>Total</td><td>${money(t)}</td><td>${money(s)}</td><td>${signed(t - s)}</td>${withActual ? `<td>${a.hours ? money(a.netWithWear) : '–'}</td>` : ''}</tr></tbody>
-    </table></div><p class="hint">Cost incl. wear per day (− = income). Select a day to see it told hour by hour. A single day can go against smart software: power bought one day is often sold the next, so judge weeks and months.</p>`;
+      <thead><tr><th>Day</th><th>Score</th><th>${key('manual')}Today: cost incl. wear</th><th>${key('daySmart')}Smart software</th><th>Extra</th></tr></thead>
+      <tbody>${rows}<tr class="highlight"><td>Total</td><td></td><td>${money(t)}</td><td>${money(s)}</td><td>${signed(t - s)}</td></tr></tbody>
+    </table></div><p class="hint">Cost incl. wear per day (− = income). Select a day to see it told hour by hour.</p>`;
 }
 
 // ------------------------------------------------ new installation: steps
@@ -1076,7 +1123,8 @@ function methodHtml() {
     <p><b>Prices.</b> Every hour uses the price that applied then for the chosen grid company, from stromligning.dk: spot, Energinet's system and net tariffs, the grid company's time-of-use tariff and the electricity tax of that date, plus the supplier markup, times 1,25 VAT. Selling gets the spot price minus production tariffs and the supplier's fee, without VAT.</p>
     <p><b>Solar.</b> Open-Meteo's historical irradiance on the panel plane × size × performance ratio, corrected for cell temperature. Imported production replaces it.</p>
     <p><b>Consumption.</b> A typical Danish daily and seasonal profile scaled to the yearly kWh, a heat pump following degree-hours below 17 °C, and cars charged in the cheapest hours of their overnight window. Imported consumption replaces it.</p>
-    <p><b>Optimiser.</b> Dynamic programming over the battery level in ${price(state.settings.strategy.stepKwh)} kWh steps. Every day at 13:00, when tomorrow's prices are published, it plans the hours until tomorrow midnight and carries out the next 24 hours. It minimises purchases − sales + wear + margin on grid purchases, and values energy left at the end at the window's cheapest buy price. "Today (manual)" uses the same planner but may only buy into the battery at or below the nearly-free limit; "Smart, solar only" never; "Smart software" whenever it pays.</p>
+    <p><b>Optimiser.</b> Dynamic programming over the battery level in ${price(state.settings.strategy.stepKwh)} kWh steps. Every day at 13:00, when tomorrow's prices are published, it plans the hours until tomorrow midnight and carries out the next 24 hours. It minimises purchases − sales + wear + margin on grid purchases, and values energy left at the end at the window's cheapest buy price.</p>
+    <p><b>Day by day against today.</b> For the existing installation the optimiser replays one day at a time from today's battery level at midnight and must end the day exactly at today's level at the next midnight. "Better timing" may only buy from the grid when today's rule would (nearly free); "Smart software" whenever it pays. If it finds nothing better, or cannot hit the level in whole steps, the day keeps the simpler way. So no day is negative and the days add up; energy carried from one day to the next is not counted, which keeps the estimate on the cautious side.</p>
     <p><b>Optimistic on purpose.</b> Inside a planning window the solar and consumption are taken as known; a real controller works from forecasts and will do somewhat worse. Hourly resolution: since October 2025 the market trades quarter-hours, which a controller could use for a little extra. No standby losses of the battery or inverter.</p>
     <p><b>Left out.</b> Subscriptions and fixed fees (the same in every strategy), payments for flexibility or frequency services, interest, price changes over the years, and any change in how the grid company bills a battery.</p>
   </div></details>`;
@@ -1246,6 +1294,9 @@ function onClick(event) {
       state.view.date = date;
       renderExplorer();
     }
+  } else if (action === 'good' && el.dataset.date) {
+    state.view.date = el.dataset.date;
+    renderExplorer();
   } else if (action === 'open-day') {
     state.view.unit = 'day';
     state.view.date = el.dataset.date;

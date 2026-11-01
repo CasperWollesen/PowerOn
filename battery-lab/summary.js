@@ -165,12 +165,13 @@ export function dayStory(rows, hours) {
     let block = blocks[blocks.length - 1];
     if (!block || block.action !== action) {
       block = {
-        action, from: hours[i].hour, to: hours[i].hour + 1, sold: 0, bought: 0, stored: 0, covered: 0,
+        action, from: hours[i].hour, to: 24, sold: 0, bought: 0, stored: 0, covered: 0,
         soldCash: 0, boughtCash: 0, coverValue: 0, sellPrices: [], buyPrices: [], endEnergy: r.energy,
       };
       blocks.push(block);
     }
-    block.to = hours[i].hour + 1;
+    // The next hour's clock hour, so DST days read 00–02, 02–05 rather than overlapping.
+    block.to = i + 1 < rows.length ? hours[i + 1].hour : 24;
     block.sold += r.batToGrid;
     block.bought += r.gridToBat;
     block.stored += r.pvToBat;
@@ -240,4 +241,26 @@ export function investment(settings) {
 // @req LAB-16
 export function paybackYears(amount, savingPerYear) {
   return savingPerYear > 0 ? amount / savingPerYear : Infinity;
+}
+
+/** 0–100 for how much a day had to win; `full` kr. or more scores 100, under 0,50 kr. scores 0. */
+// @req LAB-18
+export function dayScore(extra, full) {
+  if (!(extra >= 0.5) || !(full > 0)) return 0;
+  return Math.min(100, Math.round((100 * extra) / full));
+}
+
+/**
+ * What smart control would have earned more than today, per day (LAB-07): better
+ * timing of the same moves, buying from the grid on top, the total and its score.
+ */
+// @req LAB-07 LAB-18
+export function dayExtras(days, manualRows, timingRows, smartRows, full) {
+  return days.map((d) => {
+    const today = totals(manualRows, d.from, d.to).netWithWear;
+    const better = totals(timingRows, d.from, d.to).netWithWear;
+    const best = totals(smartRows, d.from, d.to).netWithWear;
+    const extra = today - best;
+    return { date: d.date, from: d.from, to: d.to, timing: today - better, grid: better - best, extra, score: dayScore(extra, full) };
+  });
 }

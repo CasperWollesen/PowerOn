@@ -60,7 +60,7 @@ Requirement → the code that implements it → the tests that verify it.
 | [LAB-04](battery-lab.md#lab-04--consumption-model) | Consumption model | Implemented | test | `battery-lab/model.js` | `battery-lab.test.js` |
 | [LAB-05](battery-lab.md#lab-05--battery-and-grid-limits) | Battery and grid limits | Implemented | test | `battery-lab/optimizer.js` | `battery-lab.test.js` |
 | [LAB-06](battery-lab.md#lab-06--strategies-side-by-side) | Strategies side by side | Implemented | test | `battery-lab/app.js`, `battery-lab/optimizer.js` | `battery-lab.test.js` |
-| [LAB-07](battery-lab.md#lab-07--optimiser) | Optimiser | Implemented | test | `battery-lab/optimizer.js` | `battery-lab.test.js` |
+| [LAB-07](battery-lab.md#lab-07--optimiser) | Optimiser | Implemented | test | `battery-lab/optimizer.js`, `battery-lab/summary.js` | `battery-lab.test.js` |
 | [LAB-08](battery-lab.md#lab-08--where-the-stored-energy-came-from) | Where the stored energy came from | Implemented | test | `battery-lab/optimizer.js` | `battery-lab.test.js` |
 | [LAB-09](battery-lab.md#lab-09--period-summary) | Period summary | Implemented | test | `battery-lab/app.js`, `battery-lab/charts.js`, `battery-lab/summary.js` | `battery-lab.test.js` |
 | [LAB-10](battery-lab.md#lab-10--day-week-and-month-explorer) | Day, week and month explorer | Implemented | manual | `battery-lab/app.js`, `battery-lab/charts.js`, `battery-lab/summary.js` | `battery-lab.test.js` |
@@ -71,6 +71,7 @@ Requirement → the code that implements it → the tests that verify it.
 | [LAB-15](battery-lab.md#lab-15--two-views) | Two views | Implemented | manual | `battery-lab/app.js` | – |
 | [LAB-16](battery-lab.md#lab-16--purchase-prices-and-payback) | Purchase prices and payback | Implemented | test | `battery-lab/app.js`, `battery-lab/summary.js` | `battery-lab.test.js` |
 | [LAB-17](battery-lab.md#lab-17--the-day-in-words) | The day in words | Implemented | test | `battery-lab/app.js`, `battery-lab/summary.js` | `battery-lab.test.js` |
+| [LAB-18](battery-lab.md#lab-18--day-score-and-the-days-worth-a-look) | Day score and the days worth a look | Implemented | test | `battery-lab/app.js`, `battery-lab/charts.js`, `battery-lab/optimizer.js`, `battery-lab/summary.js` | `battery-lab.test.js` |
 | [NFR-01](non-functional.md#nfr-01--plain-web-no-build) | Plain web, no build | Implemented | check | `index.html` | – |
 | [NFR-02](non-functional.md#nfr-02--language-and-formatting) | Language and formatting | Implemented | test | `js/format.js` | `time.test.js` |
 | [NFR-03](non-functional.md#nfr-03--mobile-first) | Mobile first | Implemented | manual | `css/styles.css` | – |
@@ -124,4 +125,4 @@ Requirement → the code that implements it → the tests that verify it.
 | [VIEW-02](views.md#view-02--simple) | Simple | Implemented | manual | `js/day-view.js` | – |
 | [VIEW-03](views.md#view-03--nerd) | Nerd | Implemented | manual | `js/day-view.js` | – |
 
-117 requirements · 112 with code tags · 59 with tests.
+118 requirements · 113 with code tags · 60 with tests.

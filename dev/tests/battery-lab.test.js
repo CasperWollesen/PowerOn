@@ -3,10 +3,10 @@ import {
   defaultSettings, normalizeSettings, buildHours, priceSeries, solarSeries, pvKwh, houseSeries,
   heatPumpSeries, carSeries, danishInstant, NORMAL_DEGREE_HOURS,
 } from '../../battery-lab/model.js';
-import { batteryConfig, hourFlows, planWindow, runStrategy } from '../../battery-lab/optimizer.js';
+import { batteryConfig, hourFlows, planWindow, runStrategy, runDays, manualSellHours } from '../../battery-lab/optimizer.js';
 import {
   totals, dayRanges, stepRange, shiftStep, breakEven, cumulativeSaving, dayStory, compareRuns, investment, paybackYears, perYear,
-  isoWeek,
+  isoWeek, dayScore, dayExtras,
 } from '../../battery-lab/summary.js';
 import { parseCsv, parseNumber, parseTimestamp, describeCsv, toHourly, completeHours, actualRows } from '../../battery-lab/import.js';
 import { monthsBetween } from '../../battery-lab/data.js';
@@ -378,4 +378,63 @@ test('LAB-16', 'purchase prices add up per setup and give a simple payback', () 
   expect(paybackYears(160000, 20000)).toBe(8);
   expect(paybackYears(1000, 0)).toBe(Infinity);
   expect(perYear(100, 73)).toBe(500);
+});
+
+test('LAB-06', 'today sells in the best hours of the day above the floor and covers the house otherwise', () => {
+  const inp = inputs([
+    { pv: 6, load: 1, buy: 1, sell: 0.4 },
+    { pv: 0, load: 1, buy: 2, sell: 1.2 },
+    { pv: 0, load: 1, buy: 3, sell: 2.5 },
+    { pv: 0, load: 1, buy: 1.5, sell: 0.9 },
+  ]);
+  const cfg = cfgFor({ manualSellHours: 2, manualSellFloor: 1, manualBuyBelow: 0.1 });
+  expect([...manualSellHours(inp, cfg)]).toEqual([0, 1, 1, 0]);
+  const rows = runStrategy(inp, cfg, 'manual').rows;
+  expect(rows[0].pvToBat).toBe(5);
+  // The first good hour sells at full power, as a person following the rule would.
+  expect(rows[1].batToLoad).toBe(1);
+  expect(rows[1].batToGrid).toBe(4);
+  expect(rows[2].energy).toBe(0);
+  expect(rows[3].batToLoad).toBe(0);
+});
+
+test('LAB-07', 'an anchored plan starts and ends exactly at the given levels, or says it cannot', () => {
+  const inp = inputs([{ buy: 0.2, sell: 0.1 }, { buy: 3, sell: 2.5 }, { buy: 1, sell: 0.5 }]);
+  const plan = planWindow(inp, 0, 3, 2.3, cfgFor(), true, { anchored: true, endEnergy: 4.3 });
+  expect(plan[0]).toBeCloseTo(2.3, 9);
+  expect(plan[3]).toBeCloseTo(4.3, 9);
+  expect(planWindow(inp, 0, 3, 0, cfgFor(), false, { anchored: true, endEnergy: 6 })).toBeNull();
+});
+
+test('LAB-07 LAB-18', 'day by day, smart control keeps the levels of today at midnight and never does worse', () => {
+  const hourly = [];
+  for (let i = 0; i < 48; i++) {
+    const hour = i % 24;
+    hourly.push({ pv: hour >= 10 && hour < 15 ? 3 : 0, load: 0.5, buy: hour < 5 ? 0.6 : hour >= 17 && hour < 21 ? 3 : 1.5, sell: hour >= 17 && hour < 21 ? 2 : 0.7 });
+  }
+  const inp = inputs(hourly);
+  const cfg = cfgFor({ manualSellHours: 2, manualSellFloor: 1, manualBuyBelow: 0.3, step: 0.5 });
+  const manual = runStrategy(inp, cfg, 'manual').rows;
+  const timing = runDays(inp, cfg, manual, cfg.manualBuyBelow);
+  const smart = runDays(inp, cfg, manual, true, timing);
+  for (const end of [23, 47]) {
+    expect(Math.abs(smart[end].energy - manual[end].energy)).toBeLessThan(0.26);
+    expect(Math.abs(timing[end].energy - manual[end].energy)).toBeLessThan(0.26);
+  }
+  const days = dayRanges(inp.hours);
+  const extras = dayExtras(days, manual, timing, smart, 25);
+  for (const e of extras) {
+    expect(e.timing).toBeGreaterThan(-1e-9);
+    expect(e.grid).toBeGreaterThan(-1e-9);
+    expect(e.extra).toBeCloseTo(e.timing + e.grid, 9);
+  }
+  expect(extras[0].grid).toBeGreaterThan(1);
+});
+
+test('LAB-18', 'the day score is linear up to the full amount and ignores small change', () => {
+  expect(dayScore(0.15, 25)).toBe(0);
+  expect(dayScore(12.5, 25)).toBe(50);
+  expect(dayScore(25, 25)).toBe(100);
+  expect(dayScore(80, 25)).toBe(100);
+  expect(dayScore(-3, 25)).toBe(0);
 });

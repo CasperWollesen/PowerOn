@@ -99,11 +99,12 @@ The same hours, prices, solar and consumption MUST be run through these strategi
    it never sells and never buys. What a hybrid inverter does out of the box.
 4. **Sell above a threshold** — self-use, plus selling from the battery at full
    power whenever the sell price is at or above a threshold.
-5. **Today (manual)** — how the existing installation is run by hand: stored solar
-   is sold at the best hours, and the battery is only topped up from the grid when
-   the full buy price is at or below a "nearly free" limit (default 0,30 kr./kWh).
-   Modelled with the optimiser, so the timing is perfect; the real manual result is
-   likely worse, which makes the extra from software a cautious estimate.
+5. **Today (manual)** — how the existing installation is run by hand, as a fixed
+   daily rule: the battery stores solar and covers the house; it sells at full power
+   in the day's best hours (default 4) when the sell price is at least a floor
+   (default 1,00 kr./kWh); it is only topped up from the grid when the full buy price
+   is at or below a "nearly free" limit (default 0,30 kr./kWh). Today's prices are
+   known since yesterday 13:00, so a person can follow this rule.
 6. **Smart, solar only** — the optimiser plans charging and selling, but the
    battery is only charged from solar surplus.
 7. **Smart software** (smart, solar + grid) — the optimiser may also charge from
@@ -129,8 +130,15 @@ import cost − export revenue + wear cost + grid-charging margin − value left
   first 24 hours are carried out. The first plan starts at the period start with
   that day's prices.
 - **Hindsight planner**: one plan over the whole period; an upper bound.
-- Grid charging is either not allowed (6), allowed only at or below a buy price (5),
-  or allowed whenever it pays (7).
+- Grid charging is either not allowed (6), allowed only at or below a buy price, or
+  allowed whenever it pays (7).
+- **Day by day against today** (existing installation): smart control is replayed one
+  day at a time. Each day starts with the battery where today's way had it at
+  midnight and must end exactly where today's way had it at the next midnight, so the
+  difference is pure cash and the days add up. Two variants: **better timing** (the
+  same moves – grid only when nearly free – at better hours) and **smart software**
+  (grid whenever it pays). A day where the plan is not cheaper, or cannot reach the
+  end level in whole steps, keeps the simpler way's hours, so no day is negative.
 - Energy left at the end of a window is valued at the window's lowest buy price
   × discharge efficiency, less wear, never below zero.
 - Solar and consumption inside a window are taken as known; this is optimistic and
@@ -157,10 +165,13 @@ cost including wear, kWh sold from the battery, kWh charged from the grid, and
 equivalent full cycles (also per year). What is compared depends on the view
 (LAB-15).
 
-- Existing installation: the headline is the extra from smart software over today
-  (strategy 7 against 5), for the period and per year, next to the same figure with
-  the electricity tax from 2028. Nothing is compared with having no installation.
-  A cumulative chart shows the extra growing over the period.
+- Existing installation: the headline is the sum over the days of what smart
+  software earns more than today (LAB-07, day by day), split into better timing and
+  buying from the grid, with the average per day. A figure per year is only shown for
+  periods of at least 300 days; shorter periods are not scaled up. The same days with
+  the electricity tax from 2028 are shown beside it. Nothing is compared with having
+  no installation. Planning across midnight (strategies 6 and 7 run continuously) is
+  one level down as a second estimate.
 - New installation: savings are against no solar and no battery (LAB-16).
 - Figures per year are scaled from the period; a period shorter than a year is
   labelled as seasonal.
@@ -176,8 +187,9 @@ The owner MUST be able to step through the period by day, week or month.
   software side by side (LAB-17), why they differ, prices, the battery level of both
   as two lines, smart software's energy in and out, and an hour table with both
   strategies next to each other. Battery content by origin is one level down.
-- Existing installation, week and month: one bar per day for the extra from smart
-  software, a table with today, smart and the extra per day; selecting a day opens it.
+- Existing installation, week and month: one bar per day for the extra, split into
+  better timing and buying from the grid, and a table with the day score, today,
+  smart and the extra per day; selecting a day opens it.
 - New installation: the strategies of LAB-16 with savings against no solar and no
   battery; the day shows the selected strategy's charts as before.
 - Every step shows the running total from the period start to the end of the step.
@@ -221,7 +233,8 @@ would have done.
 **Status:** Implemented · **Priority:** Must · **Verify:** manual
 
 All settings MUST sit in closed expanders, each with a one-line summary, and MUST
-be remembered on the device (not imported data). Reset restores the defaults.
+be remembered on the device (not imported data). Reset restores the defaults. The
+whole Setup section folds into one line as well, and remembers whether it is open.
 
 - Defaults describe a reference household: Horsens (DK1, Konstant), a 60 kWh
   self-built battery from an electric car, kept between 20 % and 100 %, 10 kW,
@@ -278,6 +291,19 @@ battery 56 %".
 - Actions: sells, buys from the grid, stores solar, covers the house, waits.
 - Each line has the hours, the energy, the price range where money changes hands,
   the cash of the battery's own trades, and the battery level at the end.
-- Today and smart software are shown side by side, with the battery level at
-  midnight for each, followed by why they differ: extra kWh bought and sold, the
-  average prices, the wear, and the net difference for the day.
+- Today and smart software are shown side by side. Both start and end the day at
+  the same battery level (LAB-07), followed by why they differ: extra kWh bought and
+  sold, the average prices, the wear, and the net difference for the day.
+
+### LAB-18 · Day score and the days worth a look
+**Status:** Implemented · **Priority:** Must · **Verify:** test
+
+In the existing-installation view every day MUST get a score from 0 to 100 for how
+much smart software would have earned more than today, so days worth looking at are
+easy to find and small differences can be ignored.
+
+- Score = extra kr. that day ÷ the amount that scores 100 (setting, default 25 kr.)
+  × 100, rounded and capped at 100. Days with less than 0,50 kr. extra score 0.
+- The result shows the extra per day as bars over the period, the number of days
+  scoring 50 or more, and the ten best days; selecting one opens it.
+- The day view shows the score and offers "next day scoring 50+" and the previous one.
