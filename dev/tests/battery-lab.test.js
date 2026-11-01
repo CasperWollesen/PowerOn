@@ -6,7 +6,7 @@ import {
 import { batteryConfig, hourFlows, planWindow, runStrategy, runDays, manualSellHours } from '../../battery-lab/optimizer.js';
 import {
   totals, dayRanges, stepRange, shiftStep, breakEven, cumulativeSaving, dayStory, compareRuns, investment, paybackYears, perYear,
-  isoWeek, dayScore, dayExtras, dayTraits, gainSource, periodUnit, shiftPeriod, presetPeriod, edgeStep, priceRanges,
+  isoWeek, dayScore, dayExtras, dayTraits, gainSource, periodUnit, shiftPeriod, presetPeriod, edgeStep, priceRanges, tradeWindows,
 } from '../../battery-lab/summary.js';
 import { parseCsv, parseNumber, parseTimestamp, describeCsv, toHourly, completeHours, actualRows } from '../../battery-lab/import.js';
 import { monthsBetween } from '../../battery-lab/data.js';
@@ -511,4 +511,28 @@ test('LAB-10', 'the price ranges of a day skip unpriced hours', () => {
   const rows = [{ priced: true, buy: 2, sell: 1 }, { priced: true, buy: 3, sell: 1.5 }, { priced: false, buy: 0, sell: 0 }];
   expect(priceRanges(rows)).toEqual({ minBuy: 2, maxBuy: 3, minSell: 1, maxSell: 1.5 });
   expect(priceRanges([{ priced: false, buy: 1, sell: 1 }])).toBeNull();
+});
+
+test('LAB-10 LAB-11', 'buying and selling pay only past limits that count losses, wear and margin', () => {
+  const cfg = { etaC: 0.9, etaD: 0.9, wear: 0.1, margin: 0.05 };
+  const rows = [
+    { priced: true, buy: 1.0, sell: 0.5 },
+    { priced: true, buy: 2.0, sell: 1.0 },
+    { priced: false, buy: 0, sell: 0 },
+    { priced: true, buy: 1.2, sell: 2.5 },
+    { priced: true, buy: 3.0, sell: 1.5 },
+  ];
+  const win = tradeWindows(rows, cfg);
+  expect(win.cheapest).toBe(0);
+  expect(win.best).toBe(3);
+  expect(win.buyBelow).toBeCloseTo((2.5 - 0.1) * 0.81 - 0.05, 9);
+  expect(win.sellAbove).toBeCloseTo((1.0 + 0.05) / 0.81 + 0.1, 9);
+  expect(win.buyHours).toEqual([0]);
+  expect(win.sellHours).toEqual([3, 4]);
+  expect(win.pays).toBe(true);
+  expect(win.gain).toBeCloseTo(2.5 - win.sellAbove, 9);
+  const early = tradeWindows([{ priced: true, buy: 1, sell: 3 }, { priced: true, buy: 0.5, sell: 0.4 }], cfg);
+  expect(early.pays).toBe(false);
+  expect(early.buyHours).toEqual([]);
+  expect(tradeWindows([{ priced: false, buy: 1, sell: 1 }], cfg)).toBeNull();
 });

@@ -175,11 +175,11 @@ function hourAxis(hours, x, band, height) {
  * The three day panels sharing the hour axis: prices, energy in and out of the
  * battery, and the battery level split by origin.
  * rows: the day's strategy rows; before: { solarE, gridE, startE } at midnight;
- * refs: dashed reference lines in the price panel, [{ value, color }]; with two,
- * a faint band fills the space between them.
+ * refs: dashed reference lines in the price panel, [{ value, color }];
+ * zones: hours shaded between two prices in the price panel, [{ i, lo, hi, color }].
  */
 // @req LAB-10
-export function dayPanels({ width, hours, rows, before, cfg, tips, refs = [] }) {
+export function dayPanels({ width, hours, rows, before, cfg, tips, refs = [], zones = [] }) {
   const pad = { l: 48, r: 10, t: 8, b: 22 };
   const w = Math.max(120, width - pad.l - pad.r);
   const n = rows.length;
@@ -192,7 +192,8 @@ export function dayPanels({ width, hours, rows, before, cfg, tips, refs = [] }) 
   // Prices
   const H1 = 150;
   const h1 = H1 - pad.t - pad.b;
-  const priceValues = rows.flatMap((r) => (r.priced ? [r.buy, r.sell] : []));
+  const shown = refs.filter((r) => Number.isFinite(r.value));
+  const priceValues = [...rows.flatMap((r) => (r.priced ? [r.buy, r.sell] : [])), ...shown.map((r) => r.value)];
   const s1 = niceScale(Math.min(0, ...priceValues), Math.max(0.5, ...priceValues));
   const y1 = (v) => pad.t + ((s1.max - v) / (s1.max - s1.min)) * h1;
   const stepLine = (key, color) => {
@@ -204,10 +205,12 @@ export function dayPanels({ width, hours, rows, before, cfg, tips, refs = [] }) 
     });
     return `<path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
   };
-  const shown = refs.filter((r) => Number.isFinite(r.value));
-  const band2 = shown.length === 2
-    ? `<rect class="ref-band" x="${pad.l}" width="${w}" y="${Math.min(y1(shown[0].value), y1(shown[1].value)).toFixed(1)}" height="${Math.abs(y1(shown[0].value) - y1(shown[1].value)).toFixed(1)}"/>` : '';
-  const refLines = band2 + shown.map((r) => {
+  const shaded = zones.map((z) => {
+    const top = y1(Math.max(z.lo, z.hi));
+    const bottom = y1(Math.min(z.lo, z.hi));
+    return `<rect class="zone" x="${x(z.i).toFixed(1)}" width="${band.toFixed(1)}" y="${top.toFixed(1)}" height="${(bottom - top).toFixed(1)}" fill="${z.color}"/>`;
+  }).join('');
+  const refLines = shaded + shown.map((r) => {
     const yy = y1(r.value).toFixed(1);
     return `<line class="ref" x1="${pad.l}" x2="${pad.l + w}" y1="${yy}" y2="${yy}" stroke="${r.color}"/>`;
   }).join('');

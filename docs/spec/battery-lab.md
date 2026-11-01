@@ -195,12 +195,17 @@ The owner MUST be able to step through the period by day, week or month.
   as two lines, smart software's energy in and out, and an hour table with both
   strategies next to each other. Battery content by origin is one level down.
 - The prices and the battery level fold like the other parts of the day (LAB-17),
-  each with a one-line summary: the range of buy and sell prices and the best sale
-  minus the cheapest buy; how high each way fills the battery and where they end.
-- A remembered checkbox draws the day's cheapest buy price and best sell price as
-  thin dashed lines in the price chart, with a faint band between them, and says in
-  words at which hours they fall, the difference, and the sale a kWh bought in the
-  cheapest hour needs to pay after losses, wear and margin (LAB-11).
+  each with a one-line summary: the range of buy and sell prices and what buying to
+  sell later earns at best per kWh; how high each way fills the battery and where
+  they end.
+- A remembered checkbox shows where buying from the grid to sell later pays, kWh for
+  kWh after losses, wear and margin (LAB-11) – a kWh bought is not a kWh sold:
+  - "buy below" = (best sale − w) × η − m, a dashed line in the buy colour; the
+    hours before the best sale whose buy price is under it are shaded;
+  - "sell above" = (cheapest buy + m) ÷ η + w, a dashed line in the sell colour; the
+    hours after the cheapest buy whose sell price is over it are shaded;
+  - in words: both limits, the hours that clear them, and what the cheapest to the
+    best hour earns per kWh.
 - Existing installation, week and month: one bar per day for the extra, split into
   better timing and buying from the grid, and a table with the day score, today,
   smart and the extra per day; selecting a day opens it.

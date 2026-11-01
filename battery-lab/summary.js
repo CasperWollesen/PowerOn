@@ -427,3 +427,28 @@ export function priceRanges(rows) {
   const sells = priced.map((r) => r.sell);
   return { minBuy: Math.min(...buys), maxBuy: Math.max(...buys), minSell: Math.min(...sells), maxSell: Math.max(...sells) };
 }
+
+/**
+ * Where buying from the grid to sell later pays on a day, kWh for kWh after losses,
+ * wear and margin (η = charge × discharge efficiency, w = wear, m = margin):
+ * buying pays below (best sale − w) × η − m in the hours before the best sale, and
+ * selling pays above (cheapest buy + m) ÷ η + w in the hours after the cheapest buy.
+ * rows: the day's hours [{ priced, buy, sell }]; hours are row indexes. Null without prices.
+ */
+// @req LAB-10 LAB-11
+export function tradeWindows(rows, cfg) {
+  const eta = cfg.etaC * cfg.etaD;
+  const priced = rows.map((_, i) => i).filter((i) => rows[i].priced);
+  if (!priced.length) return null;
+  const cheapest = priced.reduce((a, b) => (rows[b].buy < rows[a].buy ? b : a));
+  const best = priced.reduce((a, b) => (rows[b].sell > rows[a].sell ? b : a));
+  const buyBelow = (rows[best].sell - cfg.wear) * eta - cfg.margin;
+  const sellAbove = (rows[cheapest].buy + cfg.margin) / eta + cfg.wear;
+  const gain = rows[best].sell - sellAbove;
+  return {
+    eta, cheapest, best, buyBelow, sellAbove, gain,
+    pays: cheapest < best && gain > 0,
+    buyHours: priced.filter((i) => i < best && rows[i].buy < buyBelow),
+    sellHours: priced.filter((i) => i > cheapest && rows[i].sell > sellAbove),
+  };
+}

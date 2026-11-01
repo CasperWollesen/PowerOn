@@ -13,7 +13,7 @@ import { STRATEGIES, batteryConfig, runStrategy, runDays, hourAction, startEnerg
 import {
   totals, dayRanges, stepRange, shiftStep, cumulativeSaving, saving, breakEven, perYear, dayStory,
   compareRuns, investment, paybackYears, isoWeek, dayExtras, dayTraits, gainSource,
-  periodUnit, shiftPeriod, presetPeriod, edgeStep, priceRanges,
+  periodUnit, shiftPeriod, presetPeriod, edgeStep, priceRanges, tradeWindows,
 } from './summary.js';
 import { parseCsv, describeCsv, toHourly, completeHours, coverage, actualRows, ROLES, UNITS } from './import.js';
 import { loadPrices, loadWeather, getGridCompanies } from './data.js';
@@ -1065,14 +1065,19 @@ function netText(t) {
   return signed(-t.netWithWear, 2);
 }
 
-/** The band between the cheapest buy and the best sale, and whether buying to sell later pays. */
+/** Where buying to sell later pays on the day, in words: the two limits and the hours that clear them. */
 // @req LAB-10 LAB-11
-function tradeText(trade) {
-  const from = `${hh(trade.from.hour)}:00`;
-  const verdict = trade.to.hour <= trade.from.hour ? 'but the best sale comes before the cheapest buy'
-    : trade.pays ? `it does, by ${signed(trade.gain, 2)} a kWh` : 'it does not this day';
-  return `<p class="muted small">Cheapest buy ${price(trade.from.buy)} kr. at ${from} · best sale ${price(trade.to.sell)} kr. at ${hh(trade.to.hour)}:00 · difference ${signed(trade.to.sell - trade.from.buy, 2)} a kWh. `
-    + `Bought at ${from}, a kWh must sell above ${price(trade.need)} kr. to pay after losses, wear and margin – ${verdict}.</p>`;
+function tradeHtml(win, rows, hours) {
+  const at = (i) => `${hh(hours[i].hour)}:00`;
+  const when = (list) => hourGroups(list.map((i) => hours[i].hour));
+  const verdict = win.pays ? `From the cheapest to the best hour a kWh earns ${signed(win.gain, 2)}`
+    : win.best < win.cheapest ? 'The best sale comes before the cheapest buy this day.'
+      : 'From the cheapest to the best hour it does not pay this day.';
+  return `<ul class="trade">
+      <li><b>Buy below ${price(win.buyBelow)} kr.</b> (blue dashed) to sell at the best sale, ${price(rows[win.best].sell)} kr. at ${at(win.best)}: ${win.buyHours.length ? `pays at ${when(win.buyHours)}` : 'no hour before it is that cheap'}.</li>
+      <li><b>Sell above ${price(win.sellAbove)} kr.</b> (violet dashed) for a kWh bought at the cheapest hour, ${price(rows[win.cheapest].buy)} kr. at ${at(win.cheapest)}: ${win.sellHours.length ? `pays at ${when(win.sellHours)}` : 'no hour after it sells that high'}.</li>
+    </ul>
+    <p class="hint">Not 1:1: of a kWh put in, ${pct(100 * win.eta)} comes back, and wear and margin from Setup are added. ${verdict}</p>`;
 }
 
 // @req LAB-10 LAB-11 LAB-17
@@ -1095,9 +1100,14 @@ function ownerDay(step, facts) {
   const ranges = priceRanges(today);
   const dayRows = hours.map((h, i) => ({ hour: h.hour, buy: today[i].priced ? today[i].buy : NaN, sell: today[i].sell, pv: today[i].pv, load: today[i].load }));
   const be = breakEven(cfg, dayRows.filter((d) => Number.isFinite(d.buy)));
-  const trade = be?.rules.find((r) => r.id === 'gridToGrid');
-  const refs = state.priceLines && trade ? [{ value: trade.from.buy, color: 'var(--c-blue)' }, { value: trade.to.sell, color: 'var(--c-violet)' }] : [];
-  const sp = dayPanels({ width, hours, rows: smart, before: start, cfg, tips, refs });
+  const win = tradeWindows(today, cfg);
+  const shade = state.priceLines && win;
+  const refs = shade ? [{ value: win.buyBelow, color: 'var(--c-blue)' }, { value: win.sellAbove, color: 'var(--c-violet)' }] : [];
+  const zones = shade ? [
+    ...win.buyHours.map((i) => ({ i, lo: today[i].buy, hi: win.buyBelow, color: 'var(--c-blue)' })),
+    ...win.sellHours.map((i) => ({ i, lo: win.sellAbove, hi: today[i].sell, color: 'var(--c-violet)' })),
+  ] : [];
+  const sp = dayPanels({ width, hours, rows: smart, before: start, cfg, tips, refs, zones });
   const tp = dayPanels({ width, hours, rows: today, before: start, cfg, tips });
   const levels = levelLines({
     width, hours, tips, minPct: state.settings.battery.minSocPct,
@@ -1125,12 +1135,12 @@ function ownerDay(step, facts) {
     </div>`);
 
   const pricesPart = part('dayPrices', 'Prices, kr./kWh',
-    ranges ? `Buy ${price(ranges.minBuy)}–${price(ranges.maxBuy)} · sell ${price(ranges.minSell)}–${price(ranges.maxSell)} · best sale − cheapest buy ${signed(ranges.maxSell - ranges.minBuy, 2)}` : 'No prices for this day',
+    ranges ? `Buy ${price(ranges.minBuy)}–${price(ranges.maxBuy)} · sell ${price(ranges.minSell)}–${price(ranges.maxSell)} · ${win?.pays ? `buying to sell later earns up to ${signed(win.gain, 2)} a kWh` : 'buying to sell later does not pay'}` : 'No prices for this day',
     `<div class="chart-head">
       ${legend([{ label: 'Buy (full price)', color: 'var(--c-blue)', line: true }, { label: 'Sell', color: 'var(--c-violet)', line: true }])}
-      <label class="toggle"><input type="checkbox" data-action="price-lines"${state.priceLines ? ' checked' : ''}> Dashed lines: the day's cheapest buy and best sale</label>
+      <label class="toggle"><input type="checkbox" data-action="price-lines"${state.priceLines ? ' checked' : ''}> Show when buying or selling pays (dashed limits, shaded hours)</label>
     </div>
-    ${state.priceLines && trade ? tradeText(trade) : ''}
+    ${shade ? tradeHtml(win, today, hours) : ''}
     ${sp.prices}`);
   const peak = (rows) => Math.max(level(start.energy), ...rows.map((r) => level(r.energy)));
   const endToday = level(today[today.length - 1].energy);
