@@ -123,6 +123,7 @@ button.icon { padding: 6px 12px; min-width: 40px; }
 .segmented { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 2px; }
 .segmented button { border: 0; background: transparent; min-height: 32px; padding: 5px 12px; }
 .segmented button[aria-pressed="true"] { background: var(--surface); box-shadow: 0 0 0 1px var(--border); font-weight: 600; }
+.presets button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
 
 /* Expanders: a summary line, the details on request. */
 details.group {

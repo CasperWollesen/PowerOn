@@ -6,7 +6,7 @@ import {
 import { batteryConfig, hourFlows, planWindow, runStrategy, runDays, manualSellHours } from '../../battery-lab/optimizer.js';
 import {
   totals, dayRanges, stepRange, shiftStep, breakEven, cumulativeSaving, dayStory, compareRuns, investment, paybackYears, perYear,
-  isoWeek, dayScore, dayExtras, dayTraits, gainSource,
+  isoWeek, dayScore, dayExtras, dayTraits, gainSource, periodUnit, shiftPeriod, presetPeriod,
 } from '../../battery-lab/summary.js';
 import { parseCsv, parseNumber, parseTimestamp, describeCsv, toHourly, completeHours, actualRows } from '../../battery-lab/import.js';
 import { monthsBetween } from '../../battery-lab/data.js';
@@ -471,4 +471,27 @@ test('LAB-19', 'where smart software wins is the hours it buys, sells or covers 
   expect(src.sell.hours).toEqual([1]);
   expect(src.cover).toBeNull();
   expect(src.store).toBeNull();
+});
+
+test('LAB-20', 'presets hold the last completed day; this week and month start on Monday and the 1st', () => {
+  const last = '2026-10-31';
+  expect(presetPeriod('week', last)).toEqual({ from: '2026-10-26', to: last });
+  expect(presetPeriod('month', last)).toEqual({ from: '2026-10-01', to: last });
+  expect(presetPeriod('days7', last)).toEqual({ from: '2026-10-25', to: last });
+  expect(presetPeriod('lastYear', last)).toEqual({ from: '2025-01-01', to: '2025-12-31' });
+});
+
+test('LAB-20', 'a period steps by its own unit and stops at yesterday', () => {
+  const last = '2026-10-31';
+  const first = '2023-01-01';
+  expect(periodUnit({ from: '2026-10-26', to: last }, last)).toEqual({ unit: 'week', size: 1 });
+  expect(shiftPeriod({ from: '2026-10-26', to: last }, -1, last, first)).toEqual({ from: '2026-10-19', to: '2026-10-25' });
+  expect(shiftPeriod({ from: '2026-10-19', to: '2026-10-25' }, 1, last, first)).toEqual({ from: '2026-10-26', to: last });
+  expect(shiftPeriod({ from: '2026-10-26', to: last }, 1, last, first)).toBeNull();
+  expect(shiftPeriod({ from: '2026-10-01', to: last }, -1, last, first)).toEqual({ from: '2026-09-01', to: '2026-09-30' });
+  expect(shiftPeriod({ from: '2026-01-01', to: '2026-02-28' }, 1, last, first)).toEqual({ from: '2026-03-01', to: '2026-04-30' });
+  expect(shiftPeriod({ from: '2025-01-01', to: '2025-12-31' }, 1, last, first)).toEqual({ from: '2026-01-01', to: last });
+  expect(periodUnit({ from: '2026-01-01', to: last }, last)).toEqual({ unit: 'year', size: 1 });
+  expect(shiftPeriod({ from: '2026-10-02', to: last }, -1, last, first)).toEqual({ from: '2026-09-02', to: '2026-10-01' });
+  expect(shiftPeriod({ from: '2023-01-02', to: '2023-01-08' }, -1, last, first)).toBeNull();
 });

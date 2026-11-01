@@ -13,6 +13,7 @@ import { STRATEGIES, batteryConfig, runStrategy, runDays, hourAction, startEnerg
 import {
   totals, dayRanges, stepRange, shiftStep, cumulativeSaving, saving, breakEven, perYear, dayStory,
   compareRuns, investment, paybackYears, isoWeek, dayExtras, dayTraits, gainSource,
+  periodUnit, shiftPeriod, presetPeriod,
 } from './summary.js';
 import { parseCsv, describeCsv, toHourly, completeHours, coverage, actualRows, ROLES, UNITS } from './import.js';
 import { loadPrices, loadWeather, getGridCompanies } from './data.js';
@@ -603,16 +604,14 @@ function renderPage() {
     <section class="card" id="period-card">
       <h2>Period</h2>
       <div class="row">
+        <button data-action="period-step" data-dir="-1" data-period-step="-1">‹ Previous</button>
         <label class="row small">From <input type="date" data-period="from" value="${from}" min="${MIN_DATE}" max="${yesterday()}"></label>
         <label class="row small">To <input type="date" data-period="to" value="${to}" min="${MIN_DATE}" max="${yesterday()}"></label>
+        <button data-action="period-step" data-dir="1" data-period-step="1">Next ›</button>
         <button class="primary" data-action="calculate">Calculate</button>
       </div>
-      <div class="row" style="margin-top:8px">
-        <button data-action="preset" data-days="7">Last 7 days</button>
-        <button data-action="preset" data-days="30">Last 30 days</button>
-        <button data-action="preset" data-days="365">Last 12 months</button>
-        <button data-action="preset" data-year="this">This year</button>
-        <button data-action="preset" data-year="last">Last year</button>
+      <div class="row presets" style="margin-top:8px">
+        ${PRESETS.map(([kind, text]) => `<button data-action="preset" data-preset="${kind}">${text}</button>`).join('')}
       </div>
       <div id="status" class="status" aria-live="polite"></div>
     </section>
@@ -621,8 +620,35 @@ function renderPage() {
     <section class="card" id="method">${methodHtml()}</section>
     <footer>Prices: <a href="https://stromligning.dk/">stromligning.dk</a> · Solar irradiance and temperature: <a href="https://open-meteo.com/">Open-Meteo</a> (CC BY 4.0) · Specification: <a href="../docs/spec/battery-lab.md">LAB</a> · A side page of <a href="../">PowerOn</a>. Estimates for deciding, not an invoice and not advice.</footer>`;
   setStatus(state.status.kind, state.status.text, state.status.progress);
+  refreshPeriodButtons();
   renderResults();
   renderExplorer();
+}
+
+const PRESETS = [
+  ['week', 'This week'], ['month', 'This month'], ['days7', 'Last 7 days'], ['days30', 'Last 30 days'],
+  ['days365', 'Last 12 months'], ['year', 'This year'], ['lastYear', 'Last year'],
+];
+
+/** What the previous/next buttons step by, e.g. "week", "3 months", "30 days". */
+function periodStepName() {
+  const { unit, size } = periodUnit(state.period, yesterday());
+  if (unit === 'days') return `${num(size, 0)} day${size === 1 ? '' : 's'}`;
+  return size === 1 ? unit : `${num(size, 0)} ${unit}s`;
+}
+
+// @req LAB-20
+function refreshPeriodButtons() {
+  const name = periodStepName();
+  for (const button of document.querySelectorAll('[data-period-step]')) {
+    const dir = Number(button.dataset.periodStep);
+    button.textContent = dir < 0 ? `‹ Previous ${name}` : `Next ${name} ›`;
+    button.disabled = !shiftPeriod(state.period, dir, yesterday(), MIN_DATE);
+  }
+  for (const button of document.querySelectorAll('[data-preset]')) {
+    const p = presetPeriod(button.dataset.preset, yesterday());
+    button.setAttribute('aria-pressed', String(Boolean(p) && p.from === state.period.from && p.to === state.period.to));
+  }
 }
 
 function rerenderSettings() {
@@ -726,7 +752,7 @@ function ownerResults(width) {
 
   return `
     <details class="fold"${foldAttr('result')}>
-    <summary><h2>Result · ${periodText(sim)}</h2><span class="sum">${signed(total)} over ${num(days, 0)} days · ${signed(total / days, 2)} a day · ${num(good.length, 0)} days scoring 50+</span></summary>
+    <summary><h2>Result · ${periodText(sim)}</h2><span class="sum">${signed(total)} over ${num(days, 0)} day${days === 1 ? '' : 's'} · ${signed(total / days, 2)} a day · ${num(good.length, 0)} day${good.length === 1 ? '' : 's'} scoring 50+</span></summary>
     <div class="body">
     <div class="hero"><span class="value num">${signed(total)}</span>
       <span class="label">more with smart software than today's way, over these ${num(days, 0)} days – on average <b>${signed(total / days, 2)}</b> a day.</span></div>
@@ -1285,6 +1311,7 @@ function syncPeriodInputs() {
     const input = document.querySelector(`[data-period="${name}"]`);
     if (input) input.value = state.period[name];
   }
+  refreshPeriodButtons();
 }
 
 async function importFiles(fileList) {
@@ -1320,16 +1347,13 @@ function onClick(event) {
     renderPage();
   } else if (action === 'calculate') {
     calculate();
-  } else if (action === 'preset') {
-    const to = yesterday();
-    let from;
-    if (el.dataset.days) from = addDays(to, -(Number(el.dataset.days) - 1));
-    else if (el.dataset.year === 'this') from = `${to.slice(0, 4)}-01-01`;
-    else {
-      const year = Number(to.slice(0, 4)) - 1;
-      state.period = validPeriod({ from: `${year}-01-01`, to: `${year}-12-31` });
-    }
-    if (from) state.period = validPeriod({ from, to });
+  } else if (action === 'preset' || action === 'period-step') {
+    const next = action === 'preset'
+      ? presetPeriod(el.dataset.preset, yesterday())
+      : shiftPeriod(state.period, Number(el.dataset.dir), yesterday(), MIN_DATE);
+    const valid = next && validPeriod(next);
+    if (!valid) return;
+    state.period = valid;
     save('lab.period', state.period);
     syncPeriodInputs();
     calculate();

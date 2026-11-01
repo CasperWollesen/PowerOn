@@ -330,3 +330,79 @@ export function gainSource(todayRows, smartRows, hours, from, to) {
   };
   return { buy: pack(kinds.buy), sell: pack(kinds.sell), store: pack(kinds.store), cover: pack(kinds.cover) };
 }
+
+function daysBetween(from, to) {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000) + 1;
+}
+
+/** The first of the month `n` months after the month of `date` ('YYYY-MM-DD'). */
+function addMonths(date, n) {
+  const [y, m] = date.split('-').map(Number);
+  const total = y * 12 + (m - 1) + n;
+  return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}-01`;
+}
+
+function lastOfMonth(date) {
+  return addDays(addMonths(date, 1), -1);
+}
+
+/**
+ * The unit a period is made of, for stepping: whole years, whole months, a Monday–
+ * Sunday week, or a number of days. A unit cut short at `last` (yesterday) counts whole.
+ */
+// @req LAB-20
+export function periodUnit({ from, to }, last) {
+  const ends = (end) => to === end || (to === last && to < end);
+  if (from.slice(5) === '01-01') {
+    const years = Number(to.slice(0, 4)) - Number(from.slice(0, 4)) + 1;
+    if (ends(`${to.slice(0, 4)}-12-31`)) return { unit: 'year', size: years };
+  }
+  if (from === weekStart(from) && to <= addDays(from, 6) && ends(addDays(from, 6))) return { unit: 'week', size: 1 };
+  if (from.endsWith('-01') && ends(lastOfMonth(to))) {
+    const months = (Number(to.slice(0, 4)) - Number(from.slice(0, 4))) * 12 + Number(to.slice(5, 7)) - Number(from.slice(5, 7)) + 1;
+    return { unit: 'month', size: months };
+  }
+  return { unit: 'days', size: daysBetween(from, to) };
+}
+
+/**
+ * The period before (-1) or after (1) by its own unit, cut at `last`; null when it
+ * would start after `last` or before `first`.
+ */
+// @req LAB-20
+export function shiftPeriod(period, direction, last, first) {
+  const { unit, size } = periodUnit(period, last);
+  let from;
+  let to;
+  if (unit === 'year') {
+    from = `${Number(period.from.slice(0, 4)) + direction * size}-01-01`;
+    to = `${Number(from.slice(0, 4)) + size - 1}-12-31`;
+  } else if (unit === 'month') {
+    from = addMonths(period.from, direction * size);
+    to = addDays(addMonths(from, size), -1);
+  } else if (unit === 'week') {
+    from = addDays(period.from, 7 * direction);
+    to = addDays(from, 6);
+  } else {
+    from = addDays(period.from, direction * size);
+    to = addDays(from, size - 1);
+  }
+  if (from > last || from < first) return null;
+  return { from, to: to > last ? last : to };
+}
+
+/** A preset period ending at `last` (yesterday). */
+// @req LAB-20
+export function presetPeriod(kind, last) {
+  const year = Number(last.slice(0, 4));
+  switch (kind) {
+    case 'week': return { from: weekStart(last), to: last };
+    case 'month': return { from: `${last.slice(0, 7)}-01`, to: last };
+    case 'days7': return { from: addDays(last, -6), to: last };
+    case 'days30': return { from: addDays(last, -29), to: last };
+    case 'days365': return { from: addDays(last, -364), to: last };
+    case 'year': return { from: `${year}-01-01`, to: last };
+    case 'lastYear': return { from: `${year - 1}-01-01`, to: `${year - 1}-12-31` };
+    default: return null;
+  }
+}

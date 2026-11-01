@@ -73,6 +73,7 @@ Requirement → the code that implements it → the tests that verify it.
 | [LAB-17](battery-lab.md#lab-17--the-day-in-words) | The day in words | Implemented | test | `battery-lab/app.js`, `battery-lab/summary.js` | `battery-lab.test.js` |
 | [LAB-18](battery-lab.md#lab-18--day-score-and-the-days-worth-a-look) | Day score and the days worth a look | Implemented | test | `battery-lab/app.js`, `battery-lab/charts.js`, `battery-lab/optimizer.js`, `battery-lab/summary.js` | `battery-lab.test.js` |
 | [LAB-19](battery-lab.md#lab-19--what-kind-of-day-it-was) | What kind of day it was | Implemented | test | `battery-lab/app.js`, `battery-lab/data.js`, `battery-lab/summary.js` | `battery-lab.test.js` |
+| [LAB-20](battery-lab.md#lab-20--choosing-and-stepping-the-period) | Choosing and stepping the period | Implemented | test | `battery-lab/app.js`, `battery-lab/summary.js` | `battery-lab.test.js` |
 | [NFR-01](non-functional.md#nfr-01--plain-web-no-build) | Plain web, no build | Implemented | check | `index.html` | – |
 | [NFR-02](non-functional.md#nfr-02--language-and-formatting) | Language and formatting | Implemented | test | `js/format.js` | `time.test.js` |
 | [NFR-03](non-functional.md#nfr-03--mobile-first) | Mobile first | Implemented | manual | `css/styles.css` | – |
@@ -126,4 +127,4 @@ Requirement → the code that implements it → the tests that verify it.
 | [VIEW-02](views.md#view-02--simple) | Simple | Implemented | manual | `js/day-view.js` | – |
 | [VIEW-03](views.md#view-03--nerd) | Nerd | Implemented | manual | `js/day-view.js` | – |
 
-119 requirements · 114 with code tags · 61 with tests.
+120 requirements · 115 with code tags · 62 with tests.

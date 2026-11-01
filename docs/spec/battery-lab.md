@@ -331,3 +331,20 @@ software win.
   than today, with kWh and average price.
 - Shown above each day, as a column in the best days and in the week and month
   tables, and counted for the days scoring 50 or more.
+
+### LAB-20 · Choosing and stepping the period
+**Status:** Implemented · **Priority:** Should · **Verify:** test
+
+The period MUST be quick to choose and to step through, so weeks or months can be
+compared one after another.
+
+- Presets: this week, this month, last 7 days, last 30 days, last 12 months, this
+  year, last year. "This week" and "this month" are the ones holding the last
+  completed day (yesterday), Monday to yesterday and the 1st to yesterday.
+- Previous / next move the period by its own unit: a week (Monday–Sunday) by a
+  week, whole months by the same number of months, whole years by years, anything
+  else by its number of days. A week, month or year cut short at yesterday counts as
+  the whole unit.
+- A step never goes past yesterday – the last unit is cut there – and never before
+  the earliest date the lab loads; the button is disabled when there is nowhere to go.
+- The buttons say what they step ("Previous week", "Next month", "Previous 30 days").
