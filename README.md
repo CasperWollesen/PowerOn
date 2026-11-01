@@ -13,6 +13,10 @@ See the [connection guide](docs/eloverblik-setup.md).
 
 Live: <https://casperwollesen.github.io/PowerOn/>
 
+Side page: **[Battery Lab](https://casperwollesen.github.io/PowerOn/battery-lab/)** –
+what a home battery with solar would have earned on real prices, with and without
+charging from the grid ([spec](docs/spec/battery-lab.md), [decision 0010](docs/decisions/0010-battery-lab-side-page.md)).
+
 ## Documentation
 
 | Where | What |

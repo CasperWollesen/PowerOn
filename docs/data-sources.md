@@ -41,6 +41,45 @@ GET https://stromligning.dk/api/suppliers
 - Grid tariffs are seasonal and peak 17–21; N1 winter peak reached 0,78 kr./kWh in
   October 2025 versus 0,34 in September 2026.
 
+## Battery Lab — month ranges, sell prices, grid company lookup
+
+Verified 2026-11-01 with `Origin: https://casperwollesen.github.io` (all `access-control-allow-origin: *`).
+
+```
+GET https://stromligning.dk/api/prices?supplierId=konstant_c&from=2025-11-01T00:00:00
+    &to=2025-11-30T23:45:00&aggregation=1h
+GET https://stromligning.dk/api/prices/production?supplierId=konstant_c&from=…&to=…&aggregation=1h
+GET https://stromligning.dk/api/suppliers/find?lat=55.86&long=9.85
+```
+
+- `from`/`to` are Danish local time. A whole month in one request works; `to` must be
+  the last quarter (`T23:45:00`), otherwise `aggregation=1h` fails with
+  "does not end at a full aggregation bucket". 720–745 hourly points per month,
+  DST days included, back to at least January 2024.
+- `details.electricityTax` is the tax of that date: 0,72 kr./kWh excl. VAT in 2025,
+  0,008 in 2026. The reduction to the EU minimum covers 2026 and 2027 only; from
+  2028 the rate is 60,9 øre at 2015 level, indexed (law 1775 of 29/12/2025).
+- `/prices/production` is the sale price for surplus power: spot minus Energinet's
+  and the grid company's production tariffs (Konstant, Oct 2026: −0,0103 and
+  −0,0015 excl. VAT); `price.total` is the net per kWh.
+- Customer groups `c` and `C_egenproducent` have the same per-kWh tariffs; only the
+  subscription differs.
+- `/suppliers/find` returns the grid company at a coordinate: Horsens → `konstant_c`
+  (Konstant C - 151). API documentation: `https://stromligning.dk/api/docs/`.
+
+```
+GET https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=55.86&longitude=9.85
+    &hourly=global_tilted_irradiance,temperature_2m&tilt=30&azimuth=0
+    &start_date=…&end_date=…&timezone=GMT&timeformat=unixtime
+```
+
+- Irradiance on a tilted plane per hour (W/m², mean of the *preceding* hour), up to
+  yesterday; azimuth 0 = south, −90 = east. One plane per request.
+- A year for Horsens at 35° south (Nov 2025–Oct 2026): 1 110 kWh/m² from this archive,
+  1 327 from the reanalysis archive (`archive-api.open-meteo.com/v1/archive`). Which is
+  closer to real panels is not verified; the lab uses the lower one and shows the
+  modelled kWh/kWp so the owner can calibrate against the inverter.
+
 ## Weather — Open-Meteo
 
 ```

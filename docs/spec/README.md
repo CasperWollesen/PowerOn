@@ -21,6 +21,7 @@ when behaviour changes, the spec changes in the same commit.
 | [views.md](views.md) | `VIEW` | Simple / Full / Nerd |
 | [pwa.md](pwa.md) | `PWA` | Manifest, service worker, install |
 | [non-functional.md](non-functional.md) | `NFR` | Constraints and quality attributes |
+| [battery-lab.md](battery-lab.md) | `LAB` | Battery Lab side page: strategies, optimiser, import |
 | [traceability.md](traceability.md) | – | Generated: requirement → code → test |
 
 ## Requirement format

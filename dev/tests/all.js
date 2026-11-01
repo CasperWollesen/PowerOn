@@ -10,3 +10,4 @@ import './settings.test.js';
 import './ui.test.js';
 import './usage.test.js';
 import './worker.test.js';
+import './battery-lab.test.js';

@@ -15,7 +15,7 @@ optional private Usage History uses `worker/worker.js` on Cloudflare (decision 0
 2. **Tag your code.** Add `// @req PRICE-01` above the function that implements a
    requirement. `python dev/spec-check.py` fails if an ID does not exist.
 3. **Keep the boundaries** in `docs/architecture.md`: network only in `api.js`,
-   `tariffs.js`, `weather.js`; pure logic without DOM or storage; views return
+   `tariffs.js`, `weather.js` (and `battery-lab/data.js` for the lab); pure logic without DOM or storage; views return
    `{ html, mount() }`; only `app.js` decides when to render.
 4. **English everywhere** in code, comments and UI. Numbers are formatted Danish
    (comma decimal) through `js/format.js`.
@@ -60,6 +60,8 @@ js/     app.js dashboard.js day-view.js outlook-view.js history-view.js settings
         api.js tariffs.js weather.js               ← the only network access
         prices.js forecast.js stats.js holidays.js appliances.js settings.js time.js format.js
         chart.js ui.js storage.js install.js
+battery-lab/  index.html app.js model.js optimizer.js summary.js import.js data.js charts.js lab.css
+              ← side page, not part of the app (decision 0010, spec LAB)
 dev/    serve.py run-tests.py spec-check.py make-icons.py tests/ api-test.html
 docs/   spec/ plan/ decisions/ architecture.md data-sources.md verification.md
 ```

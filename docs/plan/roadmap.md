@@ -35,6 +35,14 @@ Why now: these shorten the path from opening the app to acting on it.
 Items: PO-06 (accessibility), PO-13 (screenshot tests).
 Why now: after three feature sprints, consolidate before adding more.
 
+## Side projects
+
+Work outside the app, in its own folder and spec, recorded as `lab-NN` sprints.
+
+| Sprint | Goal | Record |
+|---|---|---|
+| lab-01 | Battery Lab: what grid charging would add to a solar battery | [sprints/lab-01-battery-lab.md](sprints/lab-01-battery-lab.md) |
+
 ## Not scheduled
 
 PO-07 (15-minute prices), PO-08 (weekly patterns), PO-10 (hourly outlook),

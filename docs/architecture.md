@@ -115,3 +115,27 @@ Band thresholds live inside `settings` (`bands.full` and `bands.spot`).
   network calls. Browser network boundaries remain unchanged. No Worker secrets
   are shipped in frontend configuration. Usage credentials and readings are
   memory-only; only `poweron.ui.usageWorkerUrl` is persisted.
+
+## Battery Lab (side page)
+
+`battery-lab/` is a separate page served next to the app ([decision 0010](decisions/0010-battery-lab-side-page.md),
+spec [`LAB`](spec/battery-lab.md)). It imports `time.js`, `format.js`, `storage.js`,
+`holidays.js` and `getGridCompanies()` from the app, never the other way round.
+
+```
+app.js        state, rendering, events (the only DOM code)
+data.js       stromligning.dk prices per month, Open-Meteo irradiance ← only network
+model.js      settings, hours, buy/sell prices, solar, house, heat pump, cars
+optimizer.js  hourFlows(), dynamic programming, day-ahead planner, rule strategies
+summary.js    totals, day/week/month steps, cumulative saving, break-even
+import.js     CSV → hourly measurements (memory only)
+charts.js     SVG line, bar and day panels
+```
+
+- One simulation = one array of hours (absolute instants with Danish date and hour)
+  and five strategies over the same inputs. Each strategy is a list of `dE` per hour;
+  `hourFlows()` turns any `dE` into flows and money, so all strategies are priced alike.
+- Storage: `poweron.lab.settings`, `poweron.lab.period`, `poweron.lab.theme`. Completed
+  price months live in the Cache API (`poweron-lab-v1`) in compact form.
+- The PowerOn service worker also controls `battery-lab/` (same scope) and serves it
+  network-first; the lab is not in `APP_SHELL`.

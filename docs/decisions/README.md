@@ -17,3 +17,4 @@ Format: context, decision, consequences.
 | [0007](0007-spec-and-tests.md) | Spec with IDs, browser tests, spec-check | Accepted |
 | [0008](0008-price-bands.md) | Absolute price bands instead of relative levels | Accepted |
 | [0009](0009-private-usage-worker.md) | Private Eloverblik Worker, memory-only usage | Accepted |
+| [0010](0010-battery-lab-side-page.md) | Battery Lab as a side page in this repository | Accepted |

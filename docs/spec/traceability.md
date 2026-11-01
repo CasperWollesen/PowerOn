@@ -54,6 +54,20 @@ Requirement → the code that implements it → the tests that verify it.
 | [HIST-03](history.md#hist-03--range-chart) | Range chart | Implemented | manual | `js/history-view.js` | – |
 | [HIST-04](history.md#hist-04--day-detail) | Day detail | Implemented | manual | `js/history-view.js` | – |
 | [HIST-05](history.md#hist-05--honest-about-old-tariffs) | Honest about old tariffs | Implemented | manual | `js/history-view.js` | – |
+| [LAB-01](battery-lab.md#lab-01--separate-page) | Separate page | Implemented | review | `battery-lab/app.js` | – |
+| [LAB-02](battery-lab.md#lab-02--real-buy-and-sell-prices) | Real buy and sell prices | Implemented | test | `battery-lab/data.js`, `battery-lab/model.js` | `battery-lab.test.js` |
+| [LAB-03](battery-lab.md#lab-03--solar-production-estimate) | Solar production estimate | Implemented | test | `battery-lab/data.js`, `battery-lab/model.js` | `battery-lab.test.js` |
+| [LAB-04](battery-lab.md#lab-04--consumption-model) | Consumption model | Implemented | test | `battery-lab/model.js` | `battery-lab.test.js` |
+| [LAB-05](battery-lab.md#lab-05--battery-and-grid-limits) | Battery and grid limits | Implemented | test | `battery-lab/optimizer.js` | `battery-lab.test.js` |
+| [LAB-06](battery-lab.md#lab-06--strategies-side-by-side) | Strategies side by side | Implemented | test | `battery-lab/app.js`, `battery-lab/optimizer.js` | `battery-lab.test.js` |
+| [LAB-07](battery-lab.md#lab-07--optimiser) | Optimiser | Implemented | test | `battery-lab/optimizer.js` | `battery-lab.test.js` |
+| [LAB-08](battery-lab.md#lab-08--where-the-stored-energy-came-from) | Where the stored energy came from | Implemented | test | `battery-lab/optimizer.js` | `battery-lab.test.js` |
+| [LAB-09](battery-lab.md#lab-09--period-summary) | Period summary | Implemented | test | `battery-lab/app.js`, `battery-lab/charts.js`, `battery-lab/summary.js` | `battery-lab.test.js` |
+| [LAB-10](battery-lab.md#lab-10--day-week-and-month-explorer) | Day, week and month explorer | Implemented | manual | `battery-lab/app.js`, `battery-lab/charts.js`, `battery-lab/summary.js` | `battery-lab.test.js` |
+| [LAB-11](battery-lab.md#lab-11--when-does-it-pay) | When does it pay? | Implemented | test | `battery-lab/app.js`, `battery-lab/summary.js` | `battery-lab.test.js` |
+| [LAB-12](battery-lab.md#lab-12--import-own-measurements) | Import own measurements | Implemented | test | `battery-lab/app.js`, `battery-lab/import.js` | `battery-lab.test.js` |
+| [LAB-13](battery-lab.md#lab-13--settings-behind-expanders) | Settings behind expanders | Implemented | manual | `battery-lab/app.js`, `battery-lab/model.js` | `battery-lab.test.js` |
+| [LAB-14](battery-lab.md#lab-14--look-and-language) | Look and language | Implemented | manual | `battery-lab/lab.css`, `battery-lab/index.html` | – |
 | [NFR-01](non-functional.md#nfr-01--plain-web-no-build) | Plain web, no build | Implemented | check | `index.html` | – |
 | [NFR-02](non-functional.md#nfr-02--language-and-formatting) | Language and formatting | Implemented | test | `js/format.js` | `time.test.js` |
 | [NFR-03](non-functional.md#nfr-03--mobile-first) | Mobile first | Implemented | manual | `css/styles.css` | – |
@@ -107,4 +121,4 @@ Requirement → the code that implements it → the tests that verify it.
 | [VIEW-02](views.md#view-02--simple) | Simple | Implemented | manual | `js/day-view.js` | – |
 | [VIEW-03](views.md#view-03--nerd) | Nerd | Implemented | manual | `js/day-view.js` | – |
 
-100 requirements · 95 with code tags · 45 with tests.
+114 requirements · 109 with code tags · 57 with tests.

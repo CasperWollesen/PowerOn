@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Battery Lab</title>
+  <meta name="description" content="What a home battery with solar would have earned on Danish electricity prices, hour by hour, with and without charging from the grid.">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#0e1116">
+  <style>html { background: #0e1116; } html[data-theme="light"] { background: #f4f6f8; }</style>
+  <!-- @req LAB-14: theme before first paint, dark unless the owner chose light -->
+  <script>
+    try {
+      document.documentElement.dataset.theme = localStorage.getItem('poweron.lab.theme') === '"light"' ? 'light' : 'dark';
+    } catch {
+      document.documentElement.dataset.theme = 'dark';
+    }
+  </script>
+  <link rel="icon" type="image/svg+xml" href="../icons/icon.svg">
+  <link rel="stylesheet" href="./lab.css">
+</head>
+<body>
+  <main id="lab" class="lab">
+    <header class="topbar"><div><h1>Battery Lab</h1><p>Loading…</p></div></header>
+  </main>
+  <div id="tip" role="tooltip"></div>
+  <noscript><p class="lab">Battery Lab needs JavaScript to fetch prices and weather.</p></noscript>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
