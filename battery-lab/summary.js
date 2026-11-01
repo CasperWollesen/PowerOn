@@ -406,3 +406,30 @@ export function presetPeriod(kind, last) {
     default: return null;
   }
 }
+
+/**
+ * Where the explorer goes when it steps past the edge of the period: the period
+ * before or after (by its own unit) and the date nearest the edge, or null.
+ */
+// @req LAB-10 LAB-20
+export function edgeStep(period, direction, last, first) {
+  const next = shiftPeriod(period, direction, last, first);
+  if (!next) return null;
+  return { period: next, date: direction < 0 ? next.to : next.from };
+}
+
+/** The day's average buy and sell price over priced hours and their ranges, or null. */
+// @req LAB-10
+export function priceAverages(rows) {
+  const priced = rows.filter((r) => r.priced);
+  if (!priced.length) return null;
+  const buys = priced.map((r) => r.buy);
+  const sells = priced.map((r) => r.sell);
+  const mean = (list) => list.reduce((a, v) => a + v, 0) / list.length;
+  const buy = mean(buys);
+  const sell = mean(sells);
+  return {
+    buy, sell, spread: buy - sell,
+    minBuy: Math.min(...buys), maxBuy: Math.max(...buys), minSell: Math.min(...sells), maxSell: Math.max(...sells),
+  };
+}

@@ -13,7 +13,7 @@ import { STRATEGIES, batteryConfig, runStrategy, runDays, hourAction, startEnerg
 import {
   totals, dayRanges, stepRange, shiftStep, cumulativeSaving, saving, breakEven, perYear, dayStory,
   compareRuns, investment, paybackYears, isoWeek, dayExtras, dayTraits, gainSource,
-  periodUnit, shiftPeriod, presetPeriod,
+  periodUnit, shiftPeriod, presetPeriod, edgeStep, priceAverages,
 } from './summary.js';
 import { parseCsv, describeCsv, toHourly, completeHours, coverage, actualRows, ROLES, UNITS } from './import.js';
 import { loadPrices, loadWeather, getGridCompanies } from './data.js';
@@ -62,6 +62,7 @@ const state = {
   companies: [],
   wearCalc: { price: 60000, cycles: 3000 },
   folds: loadFolds(),
+  averages: load('lab.averages') === true,
   generation: 0,
 };
 
@@ -70,7 +71,7 @@ function loadFolds() {
   const stored = load('lab.folds');
   const folds = {
     setup: load('lab.setupOpen') === true, result: true, best: false,
-    dayFacts: true, dayStory: true, dayWhy: true,
+    dayFacts: true, dayStory: true, dayWhy: true, dayPrices: true, dayLevel: true,
   };
   if (stored && typeof stored === 'object') {
     for (const k of Object.keys(folds)) if (typeof stored[k] === 'boolean') folds[k] = stored[k];
@@ -856,6 +857,14 @@ function renderExplorer() {
   const step = stepRange(sim.days, v.unit, v.date);
   const prev = shiftStep(sim.days, v.unit, v.date, -1);
   const next = shiftStep(sim.days, v.unit, v.date, 1);
+  const prevEdge = prev ? null : edgeStep(state.period, -1, yesterday(), MIN_DATE);
+  const nextEdge = next ? null : edgeStep(state.period, 1, yesterday(), MIN_DATE);
+  const stepAttrs = (inside, edge, dir) => {
+    if (inside) return ` class="icon" aria-label="${dir < 0 ? 'Previous' : 'Next'}"`;
+    if (!edge) return ` class="icon" disabled aria-label="${dir < 0 ? 'Previous' : 'Next'}"`;
+    const where = `${dir < 0 ? 'Previous' : 'Next'} ${periodStepName()}: ${shortDate(edge.period.from)}–${shortDate(edge.period.to)}`;
+    return ` class="icon edge" title="${esc(where)}" aria-label="${esc(where)}"`;
+  };
   const title = v.unit === 'day' ? longDate(step.first)
     : v.unit === 'week' ? `Week ${isoWeek(step.first)} · ${shortDate(step.first)}–${shortDate(step.last)} ${step.last.slice(0, 4)}`
       : `${monthName(step.first)}${step.days.length < 28 ? ` (${shortDate(step.first)}–${shortDate(step.last)} in the period)` : ''}`;
@@ -871,9 +880,9 @@ function renderExplorer() {
     <div class="explorer-head">
       <div class="segmented" role="group" aria-label="Step">${unitButtons}</div>
       <div class="stepper">
-        <button class="icon" data-action="step" data-dir="-1"${prev ? '' : ' disabled'} aria-label="Previous">‹</button>
+        <button data-action="step" data-dir="-1"${stepAttrs(prev, prevEdge, -1)}>‹</button>
         <input type="date" data-action="goto" value="${v.date}" min="${sim.days[0].date}" max="${sim.days[sim.days.length - 1].date}" aria-label="Date">
-        <button class="icon" data-action="step" data-dir="1"${next ? '' : ' disabled'} aria-label="Next">›</button>
+        <button data-action="step" data-dir="1"${stepAttrs(next, nextEdge, 1)}>›</button>
       </div>
       ${picker}
     </div>
@@ -1073,7 +1082,9 @@ function ownerDay(step, facts) {
     + `\nSmart: ${does(smart[i])} · battery ${pct(level(smart[i].energy))}`
     + `\nSmart − today: ${signed(cashOf(smart[i]) - cashOf(today[i]), 2)}`);
   const width = contentWidth($('#explorer'));
-  const sp = dayPanels({ width, hours, rows: smart, before: start, cfg, tips });
+  const avg = priceAverages(today);
+  const refs = state.averages && avg ? [{ value: avg.buy, color: 'var(--c-blue)' }, { value: avg.sell, color: 'var(--c-violet)' }] : [];
+  const sp = dayPanels({ width, hours, rows: smart, before: start, cfg, tips, refs });
   const tp = dayPanels({ width, hours, rows: today, before: start, cfg, tips });
   const levels = levelLines({
     width, hours, tips, minPct: state.settings.battery.minSocPct,
@@ -1101,15 +1112,26 @@ function ownerDay(step, facts) {
       ${storyHtml('daySmart', dayStory(smart, hours), start, cmp.other, cfg)}
     </div>`);
 
-  return `
-    <div class="parts">${facts}${story}${whyPart(cmp, start, cfg)}</div>
-    <p class="panel-title">Prices, kr./kWh</p>
-    ${legend([{ label: 'Buy (full price)', color: 'var(--c-blue)', line: true }, { label: 'Sell', color: 'var(--c-violet)', line: true }])}
-    ${sp.prices}
-    <p class="panel-title">Battery level, % of capacity</p>
-    ${legend([{ label: label('manual'), color: INFO.manual.color, line: true }, { label: label('daySmart'), color: INFO.daySmart.color, line: true }])}
+  const pricesPart = part('dayPrices', 'Prices, kr./kWh',
+    avg ? `Buy ${price(avg.minBuy)}–${price(avg.maxBuy)} · sell ${price(avg.minSell)}–${price(avg.maxSell)} · on average ${price(avg.spread)} kr. apart` : 'No prices for this day',
+    `<div class="chart-head">
+      ${legend([{ label: 'Buy (full price)', color: 'var(--c-blue)', line: true }, { label: 'Sell', color: 'var(--c-violet)', line: true }])}
+      <label class="toggle"><input type="checkbox" data-action="averages"${state.averages ? ' checked' : ''}> Dashed lines: the day's average buy and sell price</label>
+    </div>
+    ${state.averages && avg ? `<p class="muted small">Average buy ${price(avg.buy)} · average sell ${price(avg.sell)} kr./kWh · spread ${price(avg.spread)} kr.: on average a kWh bought costs this much more than a kWh sold earns.</p>` : ''}
+    ${sp.prices}`);
+  const peak = (rows) => Math.max(level(start.energy), ...rows.map((r) => level(r.energy)));
+  const endToday = level(today[today.length - 1].energy);
+  const endSmart = level(smart[smart.length - 1].energy);
+  const ends = Math.abs(endToday - endSmart) < 0.5 ? `both end at ${pct(endToday)}` : `end at ${pct(endToday)} and ${pct(endSmart)}`;
+  const levelPart = part('dayLevel', 'Battery level, % of capacity',
+    `${esc(label('manual'))} up to ${pct(peak(today))} · ${esc(label('daySmart'))} up to ${pct(peak(smart))} · ${ends}`,
+    `${legend([{ label: label('manual'), color: INFO.manual.color, line: true }, { label: label('daySmart'), color: INFO.daySmart.color, line: true }])}
     ${levels}
-    <p class="muted small">Hover or tap an hour to see both. Dashed line: lowest allowed level (${pct(state.settings.battery.minSocPct)}).</p>
+    <p class="muted small">Hover or tap an hour to see both. Dashed line: lowest allowed level (${pct(state.settings.battery.minSocPct)}).</p>`);
+
+  return `
+    <div class="parts">${facts}${story}${whyPart(cmp, start, cfg)}${pricesPart}${levelPart}</div>
     <details class="more"><summary>More charts: energy in and out, and where the stored energy came from</summary>
       <p class="panel-title">Smart software: energy in and out of the battery, kWh (up = in, down = out)</p>${flowLegend}${sp.flows}
       <p class="panel-title">Today (manual): energy in and out of the battery, kWh</p>${flowLegend}${tp.flows}
@@ -1331,6 +1353,10 @@ function onChange(event) {
   } else if (action === 'goto' && el.value) {
     state.view.date = el.value;
     renderExplorer();
+  } else if (action === 'averages') {
+    state.averages = el.checked;
+    save('lab.averages', state.averages);
+    renderExplorer();
   }
 }
 
@@ -1417,10 +1443,20 @@ function onClick(event) {
     state.view.unit = el.dataset.unit;
     renderExplorer();
   } else if (action === 'step') {
-    const date = shiftStep(state.sim.days, state.view.unit, state.view.date, Number(el.dataset.dir));
+    const dir = Number(el.dataset.dir);
+    const date = shiftStep(state.sim.days, state.view.unit, state.view.date, dir);
+    const edge = date ? null : edgeStep(state.period, dir, yesterday(), MIN_DATE);
+    const valid = edge && validPeriod(edge.period);
     if (date) {
       state.view.date = date;
       renderExplorer();
+    } else if (valid) {
+      // Past the edge: the whole period moves one step, and the explorer opens its nearest day.
+      state.period = valid;
+      state.view.date = edge.date;
+      save('lab.period', state.period);
+      syncPeriodInputs();
+      calculate();
     }
   } else if (action === 'good' && el.dataset.date) {
     state.view.date = el.dataset.date;

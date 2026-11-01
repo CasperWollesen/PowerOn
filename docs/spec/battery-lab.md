@@ -186,10 +186,19 @@ equivalent full cycles (also per year). What is compared depends on the view
 The owner MUST be able to step through the period by day, week or month.
 
 - Previous / next buttons, a date field and a strategy picker.
+- Stepping past the first or last day (week, month) of the period moves the whole
+  period one step back or forward (LAB-20) and opens its last or first day (week,
+  month); the button says where it goes. It stops at yesterday and at the earliest
+  date the lab loads.
 - Existing installation, day: the day told in words for today and for smart
   software side by side (LAB-17), why they differ, prices, the battery level of both
   as two lines, smart software's energy in and out, and an hour table with both
   strategies next to each other. Battery content by origin is one level down.
+- The prices and the battery level fold like the other parts of the day (LAB-17),
+  each with a one-line summary: the range of buy and sell prices and how far apart
+  they are on average; how high each way fills the battery and where they end.
+- A remembered checkbox draws the day's average buy and sell price as thin dashed
+  lines in the price chart, with the averages and the spread between them in words.
 - Existing installation, week and month: one bar per day for the extra, split into
   better timing and buying from the grid, and a table with the day score, today,
   smart and the extra per day; selecting a day opens it.
@@ -238,6 +247,8 @@ would have done.
 All settings MUST sit in closed expanders, each with a one-line summary, and MUST
 be remembered on the device (not imported data). Reset restores the defaults. The
 whole Setup section folds into one line as well, and remembers whether it is open.
+The inputs of a row line up: a label that wraps to two lines does not push its
+input below the others.
 
 - Defaults describe a reference household: Horsens (DK1, Konstant), a 60 kWh
   self-built battery from an electric car, kept between 20 % and 100 %, 10 kW,

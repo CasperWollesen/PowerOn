@@ -174,10 +174,11 @@ function hourAxis(hours, x, band, height) {
 /**
  * The three day panels sharing the hour axis: prices, energy in and out of the
  * battery, and the battery level split by origin.
- * rows: the day's strategy rows; before: { solarE, gridE, startE } at midnight.
+ * rows: the day's strategy rows; before: { solarE, gridE, startE } at midnight;
+ * refs: dashed reference lines in the price panel, [{ value, color }].
  */
 // @req LAB-10
-export function dayPanels({ width, hours, rows, before, cfg, tips }) {
+export function dayPanels({ width, hours, rows, before, cfg, tips, refs = [] }) {
   const pad = { l: 48, r: 10, t: 8, b: 22 };
   const w = Math.max(120, width - pad.l - pad.r);
   const n = rows.length;
@@ -202,7 +203,11 @@ export function dayPanels({ width, hours, rows, before, cfg, tips }) {
     });
     return `<path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
   };
-  const prices = svg(H1, yAxis(s1, y1, pad.l, pad.l + w) + hourAxis(hours, x, band, H1)
+  const refLines = refs.filter((r) => Number.isFinite(r.value)).map((r) => {
+    const yy = y1(r.value).toFixed(1);
+    return `<line class="ref" x1="${pad.l}" x2="${pad.l + w}" y1="${yy}" y2="${yy}" stroke="${r.color}"/>`;
+  }).join('');
+  const prices = svg(H1, yAxis(s1, y1, pad.l, pad.l + w) + hourAxis(hours, x, band, H1) + refLines
     + stepLine('buy', 'var(--c-blue)') + stepLine('sell', 'var(--c-violet)') + hits(H1, h1));
 
   // Energy in (up) and out (down) of the battery

@@ -6,7 +6,7 @@ import {
 import { batteryConfig, hourFlows, planWindow, runStrategy, runDays, manualSellHours } from '../../battery-lab/optimizer.js';
 import {
   totals, dayRanges, stepRange, shiftStep, breakEven, cumulativeSaving, dayStory, compareRuns, investment, paybackYears, perYear,
-  isoWeek, dayScore, dayExtras, dayTraits, gainSource, periodUnit, shiftPeriod, presetPeriod,
+  isoWeek, dayScore, dayExtras, dayTraits, gainSource, periodUnit, shiftPeriod, presetPeriod, edgeStep, priceAverages,
 } from '../../battery-lab/summary.js';
 import { parseCsv, parseNumber, parseTimestamp, describeCsv, toHourly, completeHours, actualRows } from '../../battery-lab/import.js';
 import { monthsBetween } from '../../battery-lab/data.js';
@@ -494,4 +494,26 @@ test('LAB-20', 'a period steps by its own unit and stops at yesterday', () => {
   expect(periodUnit({ from: '2026-01-01', to: last }, last)).toEqual({ unit: 'year', size: 1 });
   expect(shiftPeriod({ from: '2026-10-02', to: last }, -1, last, first)).toEqual({ from: '2026-09-02', to: '2026-10-01' });
   expect(shiftPeriod({ from: '2023-01-02', to: '2023-01-08' }, -1, last, first)).toBeNull();
+});
+
+test('LAB-10 LAB-20', 'stepping past the edge of the period moves the period and opens the nearest day', () => {
+  const last = '2026-10-31';
+  const first = '2023-01-01';
+  const week = { from: '2026-10-19', to: '2026-10-25' };
+  expect(edgeStep(week, -1, last, first)).toEqual({ period: { from: '2026-10-12', to: '2026-10-18' }, date: '2026-10-18' });
+  expect(edgeStep(week, 1, last, first)).toEqual({ period: { from: '2026-10-26', to: last }, date: '2026-10-26' });
+  expect(edgeStep({ from: '2026-10-26', to: last }, 1, last, first)).toBeNull();
+  expect(edgeStep({ from: '2026-09-01', to: '2026-09-30' }, -1, last, first)).toEqual({ period: { from: '2026-08-01', to: '2026-08-31' }, date: '2026-08-31' });
+  expect(edgeStep({ from: '2023-01-02', to: '2023-01-08' }, -1, last, first)).toBeNull();
+});
+
+test('LAB-10', 'the average buy and sell price of a day skip unpriced hours', () => {
+  const rows = [{ priced: true, buy: 2, sell: 1 }, { priced: true, buy: 3, sell: 1.5 }, { priced: false, buy: 0, sell: 0 }];
+  const a = priceAverages(rows);
+  expect(a.buy).toBeCloseTo(2.5, 9);
+  expect(a.sell).toBeCloseTo(1.25, 9);
+  expect(a.spread).toBeCloseTo(1.25, 9);
+  expect(a.minBuy).toBe(2);
+  expect(a.maxSell).toBe(1.5);
+  expect(priceAverages([{ priced: false, buy: 1, sell: 1 }])).toBeNull();
 });
