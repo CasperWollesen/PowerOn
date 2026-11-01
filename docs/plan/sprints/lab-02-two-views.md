@@ -4,8 +4,8 @@
 
 ## Goal
 
-The owner of an installation sees only what smart software would add to how he
-runs it today, day by day in plain words; a household without solar or a battery
+The owner of an installation sees only what smart software would add to how it is
+run today, day by day in plain words; a household without solar or a battery
 can see what a setup would cost, save and pay back.
 
 ## Items
@@ -32,7 +32,8 @@ can see what a setup would cost, save and pay back.
       month; a day opened from the month table; 375 px without page scroll; no
       console errors
 - [x] Fixed on the way: ISO week numbers were one too low in some years
-- [ ] Live site checked after deploy
+- [x] Live site checked after deploy: both views show the same figures as locally,
+      no console errors
 
 ## Result
 
