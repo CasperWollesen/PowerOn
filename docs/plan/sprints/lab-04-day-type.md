@@ -30,7 +30,8 @@ smart software won; the period summary and the best days fold away.
       DST day 25/10); folds open and close and are remembered; no console errors
 - [ ] A fresh browser could not load prices during the check: stromligning.dk kept
       answering 429 after a day of test runs. The retry logic waits and reports it.
-- [ ] Live site checked after deploy
+- [x] Live site checked after deploy: prices and wind loaded from the real origin,
+      7 April reads the same as locally, no fetch or console errors
 
 ## Result
 
