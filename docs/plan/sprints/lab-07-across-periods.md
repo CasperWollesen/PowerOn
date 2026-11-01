@@ -31,4 +31,8 @@ day's average buy and sell price; the setup inputs line up.
       sell 1,17–2,06 · on average 0,85 kr. apart"; the checkbox draws two dashed
       lines (2,37 and 1,52) and is remembered; all 14 rows of setup inputs line up;
       the only console error is the local server's missing /favicon.ico
-- [ ] Live site checked after deploy
+- [x] Live site checked after deploy: day 19/10 in week 19–25/10, ‹ opens 18/10 in
+      week 12–18/10; all five parts show their summaries; the checkbox draws two
+      dashed lines; no console errors
+- [ ] Setup alignment checked live only at a narrow width (one input per row); the
+      wide check was local
