@@ -60,6 +60,7 @@ historical irradiance on the panel plane and labelled an estimate.
 - Open-Meteo radiation is the mean of the preceding hour, so the value stamped
   `t + 1 h` belongs to the hour starting at `t`.
 - The modelled yield in kWh/kWp is shown, so it can be compared with the real one.
+- The same request also brings the wind speed at 100 m, used to describe days (LAB-19).
 
 ### LAB-04 · Consumption model
 **Status:** Implemented · **Priority:** Must · **Verify:** test
@@ -175,6 +176,8 @@ equivalent full cycles (also per year). What is compared depends on the view
 - New installation: savings are against no solar and no battery (LAB-16).
 - Figures per year are scaled from the period; a period shorter than a year is
   labelled as seasonal.
+- In the existing-installation view the summary folds into one line with the
+  headline numbers; whether it is open is remembered.
 - Subscription fees are excluded; they are the same in every strategy.
 
 ### LAB-10 · Day, week and month explorer
@@ -305,5 +308,26 @@ easy to find and small differences can be ignored.
 - Score = extra kr. that day ÷ the amount that scores 100 (setting, default 25 kr.)
   × 100, rounded and capped at 100. Days with less than 0,50 kr. extra score 0.
 - The result shows the extra per day as bars over the period, the number of days
-  scoring 50 or more, and the ten best days; selecting one opens it.
+  scoring 50 or more, and the ten best days in a folded list; selecting one opens it.
 - The day view shows the score and offers "next day scoring 50+" and the previous one.
+
+### LAB-19 · What kind of day it was
+**Status:** Implemented · **Priority:** Should · **Verify:** test
+
+Every day MUST be described in a few words, so the days that pay can be read at a
+glance: was it sunny, was it windy, what did power cost, and where did smart
+software win.
+
+- Sun: the day's solar against the best day within ±15 days (a clear-sky stand-in
+  that follows the season): at least 75 % is sunny, 40–75 % partly sunny, below that
+  cloudy; no solar when even the best day has almost none.
+- Wind: the day's mean wind speed at 100 m from the weather data: below 4 m/s calm,
+  4–7 light wind, 7–10 windy, 10 or more very windy. Local wind is a stand-in for
+  the wind that sets Danish prices.
+- Prices: the cheapest and dearest buy hour, the best sell hour, and hours with a
+  negative sell price.
+- Where smart software wins: the hours in which it buys more from the grid, sells
+  more, stores more solar (instead of selling it cheaply), or covers the house more
+  than today, with kWh and average price.
+- Shown above each day, as a column in the best days and in the week and month
+  tables, and counted for the days scoring 50 or more.

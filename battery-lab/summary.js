@@ -264,3 +264,69 @@ export function dayExtras(days, manualRows, timingRows, smartRows, full) {
     return { date: d.date, from: d.from, to: d.to, timing: today - better, grid: better - best, extra, score: dayScore(extra, full) };
   });
 }
+
+/**
+ * What kind of day it was (LAB-19): sun against the best day within ±15 days, mean
+ * wind at 100 m, and the day's price extremes. `wind` maps hour stamps (ms) to m/s.
+ */
+// @req LAB-19
+export function dayTraits(inp, days, wind) {
+  const solar = days.map((d) => {
+    let sum = 0;
+    for (let i = d.from; i < d.to; i++) sum += inp.pv[i];
+    return sum;
+  });
+  return days.map((d, k) => {
+    let best = 0;
+    for (let j = Math.max(0, k - 15); j <= Math.min(days.length - 1, k + 15); j++) best = Math.max(best, solar[j]);
+    const ratio = best > 0 ? solar[k] / best : 0;
+    const sky = best < 0.5 ? 'none' : ratio >= 0.75 ? 'sunny' : ratio >= 0.4 ? 'partly sunny' : 'cloudy';
+    const speeds = [];
+    for (let i = d.from; i < d.to; i++) {
+      const v = wind?.get(inp.hours[i].t);
+      if (Number.isFinite(v)) speeds.push(v);
+    }
+    const windMs = speeds.length ? speeds.reduce((a, b) => a + b, 0) / speeds.length : null;
+    const windLabel = windMs === null ? null : windMs >= 10 ? 'very windy' : windMs >= 7 ? 'windy' : windMs >= 4 ? 'light wind' : 'calm';
+    let minBuy = null;
+    let maxBuy = null;
+    let maxSell = null;
+    let negativeHours = 0;
+    for (let i = d.from; i < d.to; i++) {
+      if (!inp.priced[i]) continue;
+      const hour = inp.hours[i].hour;
+      if (!minBuy || inp.buy[i] < minBuy.price) minBuy = { hour, price: inp.buy[i] };
+      if (!maxBuy || inp.buy[i] > maxBuy.price) maxBuy = { hour, price: inp.buy[i] };
+      if (!maxSell || inp.sell[i] > maxSell.price) maxSell = { hour, price: inp.sell[i] };
+      if (inp.sell[i] < 0) negativeHours += 1;
+    }
+    return { date: d.date, solarKwh: solar[k], sunRatio: ratio, sky, windMs, wind: windLabel, minBuy, maxBuy, maxSell, negativeHours };
+  });
+}
+
+/**
+ * Where smart rows beat today's rows over [from, to): the hours in which they buy
+ * more into the battery, sell more from it, store more solar (priced at the sell
+ * price today got for it), or cover the house more, each with kWh, average price and
+ * the clock hours. null for a kind that did not happen.
+ */
+// @req LAB-19
+export function gainSource(todayRows, smartRows, hours, from, to) {
+  const kinds = { buy: [], sell: [], store: [], cover: [] };
+  for (let i = from; i < to; i++) {
+    const t = todayRows[i];
+    const s = smartRows[i];
+    const hour = hours[i].hour;
+    if (s.gridToBat - t.gridToBat > 0.05) kinds.buy.push({ hour, kwh: s.gridToBat - t.gridToBat, price: s.buy });
+    if (s.batToGrid - t.batToGrid > 0.05) kinds.sell.push({ hour, kwh: s.batToGrid - t.batToGrid, price: s.sell });
+    if (s.pvToBat - t.pvToBat > 0.05) kinds.store.push({ hour, kwh: s.pvToBat - t.pvToBat, price: s.sell });
+    if (s.batToLoad - t.batToLoad > 0.05) kinds.cover.push({ hour, kwh: s.batToLoad - t.batToLoad, price: s.buy });
+  }
+  // Under half a kWh is the optimiser's step showing, not a reason worth reading.
+  const pack = (list) => {
+    const kwh = list.reduce((a, x) => a + x.kwh, 0);
+    if (kwh < 0.5) return null;
+    return { kwh, avg: list.reduce((a, x) => a + x.kwh * x.price, 0) / kwh, hours: list.map((x) => x.hour) };
+  };
+  return { buy: pack(kinds.buy), sell: pack(kinds.sell), store: pack(kinds.store), cover: pack(kinds.cover) };
+}

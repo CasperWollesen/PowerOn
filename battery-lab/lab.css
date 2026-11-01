@@ -267,13 +267,18 @@ td .key { display: inline-block; width: 10px; height: 10px; border-radius: 3px; 
 .headline { font-size: 1.05rem; font-weight: 600; margin: 8px 0; }
 
 /* Collapsible Setup (LAB-13) */
-details.setup > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 18px 1fr; gap: 2px 8px; align-items: baseline; }
-details.setup > summary::-webkit-details-marker { display: none; }
-details.setup > summary::before { content: "›"; color: var(--muted); font-size: 1.3rem; line-height: 1; transition: transform 0.15s; grid-row: span 2; }
-details.setup[open] > summary::before { transform: rotate(90deg); }
-details.setup > summary h2 { margin: 0; }
-details.setup > summary .sum { grid-column: 2; color: var(--muted); font-size: 0.88rem; }
-details.setup > .body { margin-top: 10px; }
+details.fold > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 18px 1fr; gap: 2px 8px; align-items: baseline; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::before { content: "›"; color: var(--muted); font-size: 1.3rem; line-height: 1; transition: transform 0.15s; grid-row: span 2; }
+details.fold[open] > summary::before { transform: rotate(90deg); }
+details.fold > summary h2 { margin: 0; }
+details.fold > summary .sum { grid-column: 2; color: var(--muted); font-size: 0.88rem; }
+details.fold > .body { margin-top: 10px; }
+
+/* What kind of day it was (LAB-19) */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+.chip { background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; font-size: 0.84rem; white-space: nowrap; }
+.wins { margin: 6px 0 10px; }
 
 /* Day score (LAB-18) */
 .score { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; }

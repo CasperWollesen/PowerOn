@@ -2,7 +2,7 @@
 //
 //   stromligning.dk /api/prices             buy price parts per hour (spot, tariffs, tax)
 //   stromligning.dk /api/prices/production  sell price per hour after production tariffs
-//   Open-Meteo historical forecast archive  irradiance on the panel plane + air temperature
+//   Open-Meteo historical forecast archive  irradiance on the panel plane, air temperature, wind at 100 m
 //
 // Prices are fetched one calendar month per request. Completed months are kept in
 // the Cache API in a compact form; weather is kept in memory for the session.
@@ -143,14 +143,16 @@ export async function loadPrices(gridCompany, fromDate, toDate, { onProgress } =
 }
 
 /**
- * Irradiance per array plane and air temperature, stamped (ms) at the end of the
- * hour they average. Arrays with kWp 0 are skipped.
- * @returns {Promise<{ temp: Map<number, number>, gti: (Map<number, number>|null)[] }>}
+ * Irradiance per array plane, air temperature and wind speed at 100 m (m/s), stamped
+ * (ms) by Open-Meteo; irradiance is the mean of the hour ending at the stamp. Arrays
+ * with kWp 0 are skipped.
+ * @returns {Promise<{ temp: Map<number, number>, wind: Map<number, number>, gti: (Map<number, number>|null)[] }>}
  */
-// @req LAB-03
+// @req LAB-03 LAB-19
 export async function loadWeather(location, arrays, fromDate, toDate) {
   const gti = [];
   let temp = null;
+  let wind = null;
   for (const array of arrays) {
     if (!(array.kwp > 0) && temp) {
       gti.push(null);
@@ -158,16 +160,18 @@ export async function loadWeather(location, arrays, fromDate, toDate) {
     }
     const data = await weatherFor(location, array, fromDate, toDate);
     temp ??= data.temp;
+    wind ??= data.wind;
     gti.push(array.kwp > 0 ? data.gti : null);
   }
-  return { temp: temp ?? new Map(), gti };
+  return { temp: temp ?? new Map(), wind: wind ?? new Map(), gti };
 }
 
 async function weatherFor(location, array, fromDate, toDate) {
   const params = new URLSearchParams({
     latitude: String(location.lat),
     longitude: String(location.lon),
-    hourly: 'global_tilted_irradiance,temperature_2m',
+    hourly: 'global_tilted_irradiance,temperature_2m,wind_speed_100m',
+    wind_speed_unit: 'ms',
     tilt: String(array.tilt),
     azimuth: String(array.azimuth),
     start_date: addDays(fromDate, -1),
@@ -186,10 +190,12 @@ async function weatherFor(location, array, fromDate, toDate) {
   const times = raw.hourly?.time ?? [];
   const g = raw.hourly?.global_tilted_irradiance ?? [];
   const tc = raw.hourly?.temperature_2m ?? [];
-  const data = { temp: new Map(), gti: new Map() };
+  const ws = raw.hourly?.wind_speed_100m ?? [];
+  const data = { temp: new Map(), gti: new Map(), wind: new Map() };
   times.forEach((s, i) => {
     if (Number.isFinite(g[i])) data.gti.set(s * 1000, g[i]);
     if (Number.isFinite(tc[i])) data.temp.set(s * 1000, tc[i]);
+    if (Number.isFinite(ws[i])) data.wind.set(s * 1000, ws[i]);
   });
   weatherMemo.set(url, data);
   return data;

@@ -6,7 +6,7 @@ import {
 import { batteryConfig, hourFlows, planWindow, runStrategy, runDays, manualSellHours } from '../../battery-lab/optimizer.js';
 import {
   totals, dayRanges, stepRange, shiftStep, breakEven, cumulativeSaving, dayStory, compareRuns, investment, paybackYears, perYear,
-  isoWeek, dayScore, dayExtras,
+  isoWeek, dayScore, dayExtras, dayTraits, gainSource,
 } from '../../battery-lab/summary.js';
 import { parseCsv, parseNumber, parseTimestamp, describeCsv, toHourly, completeHours, actualRows } from '../../battery-lab/import.js';
 import { monthsBetween } from '../../battery-lab/data.js';
@@ -437,4 +437,38 @@ test('LAB-18', 'the day score is linear up to the full amount and ignores small 
   expect(dayScore(25, 25)).toBe(100);
   expect(dayScore(80, 25)).toBe(100);
   expect(dayScore(-3, 25)).toBe(0);
+});
+
+test('LAB-19', 'a day is described by its sun against nearby days, its wind and its prices', () => {
+  const hourly = [];
+  for (let d = 0; d < 3; d++) {
+    for (let h = 0; h < 24; h++) {
+      const sunny = h >= 10 && h < 14;
+      hourly.push({ pv: sunny ? [5, 3, 1][d] : 0, buy: h === 3 ? 0.4 : h === 19 ? 3 : 1.5, sell: h === 19 ? 2 : h === 13 && d === 2 ? -0.1 : 0.8 });
+    }
+  }
+  const inp = inputs(hourly);
+  inp.hours.forEach((h, i) => { h.date = `2026-01-0${1 + Math.floor(i / 24)}`; });
+  const wind = new Map(inp.hours.map((h, i) => [h.t, [3, 8, 12][Math.floor(i / 24)]]));
+  const traits = dayTraits(inp, dayRanges(inp.hours), wind);
+  expect(traits.map((x) => x.sky)).toEqual(['sunny', 'partly sunny', 'cloudy']);
+  expect(traits.map((x) => x.wind)).toEqual(['calm', 'windy', 'very windy']);
+  expect(traits[0].solarKwh).toBe(20);
+  expect(traits[0].minBuy).toEqual({ hour: 3, price: 0.4 });
+  expect(traits[0].maxSell).toEqual({ hour: 19, price: 2 });
+  expect(traits[2].negativeHours).toBe(1);
+});
+
+test('LAB-19', 'where smart software wins is the hours it buys, sells or covers more than today', () => {
+  const inp = inputs([{ buy: 0.2, sell: 0.1 }, { buy: 3, sell: 2.5 }]);
+  const cfg = cfgFor();
+  const today = runStrategy(inp, cfg, 'smartSolar').rows;
+  const smart = runStrategy(inp, cfg, 'smartGrid').rows;
+  const src = gainSource(today, smart, inp.hours, 0, 2);
+  expect(src.buy.kwh).toBe(5);
+  expect(src.buy.avg).toBeCloseTo(0.2, 6);
+  expect(src.buy.hours).toEqual([0]);
+  expect(src.sell.hours).toEqual([1]);
+  expect(src.cover).toBeNull();
+  expect(src.store).toBeNull();
 });

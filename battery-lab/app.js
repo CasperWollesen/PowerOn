@@ -12,7 +12,7 @@ import {
 import { STRATEGIES, batteryConfig, runStrategy, runDays, hourAction, startEnergy } from './optimizer.js';
 import {
   totals, dayRanges, stepRange, shiftStep, cumulativeSaving, saving, breakEven, perYear, dayStory,
-  compareRuns, investment, paybackYears, isoWeek, dayExtras,
+  compareRuns, investment, paybackYears, isoWeek, dayExtras, dayTraits, gainSource,
 } from './summary.js';
 import { parseCsv, describeCsv, toHourly, completeHours, coverage, actualRows, ROLES, UNITS } from './import.js';
 import { loadPrices, loadWeather, getGridCompanies } from './data.js';
@@ -60,8 +60,23 @@ const state = {
   useImported: true,
   companies: [],
   wearCalc: { price: 60000, cycles: 3000 },
+  folds: loadFolds(),
   generation: 0,
 };
+
+/** Which big expanders are open: Setup closed, Result open, best days closed by default. */
+function loadFolds() {
+  const stored = load('lab.folds');
+  const folds = { setup: load('lab.setupOpen') === true, result: true, best: false };
+  if (stored && typeof stored === 'object') {
+    for (const k of Object.keys(folds)) if (typeof stored[k] === 'boolean') folds[k] = stored[k];
+  }
+  return folds;
+}
+
+function foldAttr(name) {
+  return ` data-fold="${name}"${state.folds[name] ? ' open' : ''}`;
+}
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -500,6 +515,7 @@ function simulate() {
   results.daySmart = runDays(inp, cfg, results.manual, true, results.dayTiming);
   const days = dayRanges(hours);
   const extras = dayExtras(days, results.manual, results.dayTiming, results.daySmart, s.strategy.scoreFull);
+  const traits = dayTraits(inp, days, state.data.weather.wind);
 
   // The same hours with the electricity tax from 2028: totals, and the day-by-day extra.
   let alt = null;
@@ -521,7 +537,7 @@ function simulate() {
   const kwp = s.solar.arrays.reduce((a, b) => a + b.kwp, 0);
   const pvTotal = pv.reduce((a, b) => a + b, 0);
   return {
-    hours, inp, cfg, prices, results, mask, alt, altDays, extras, coverage: cov, usable,
+    hours, inp, cfg, prices, results, mask, alt, altDays, extras, traits, coverage: cov, usable,
     days,
     solarMissing: solar.missing,
     pvTotal,
@@ -575,7 +591,7 @@ function renderPage() {
       <button data-action="mode" data-mode="buyer" aria-pressed="${!owner}">New installation</button>
     </div>
     <section class="card" id="setup">
-      <details class="setup"${load('lab.setupOpen') === true ? ' open' : ''}>
+      <details class="fold"${foldAttr('setup')}>
         <summary><h2>Setup</h2><span class="sum" data-sum="setup">${esc(groupSummaries().setup)}</span></summary>
         <div class="body">
           <p class="hint">The defaults describe a reference household near Horsens: a 60 kWh battery built from an electric car's battery, kept between 20 % and 100 %, a 10 kW inverter, solar panels, a house and two electric cars. <span class="flag">⚑</span> marks guesses – replace them with the real numbers.</p>
@@ -604,7 +620,6 @@ function renderPage() {
     <section class="card" id="explorer"></section>
     <section class="card" id="method">${methodHtml()}</section>
     <footer>Prices: <a href="https://stromligning.dk/">stromligning.dk</a> · Solar irradiance and temperature: <a href="https://open-meteo.com/">Open-Meteo</a> (CC BY 4.0) · Specification: <a href="../docs/spec/battery-lab.md">LAB</a> · A side page of <a href="../">PowerOn</a>. Estimates for deciding, not an invoice and not advice.</footer>`;
-  $('#setup details.setup').addEventListener('toggle', (event) => save('lab.setupOpen', event.currentTarget.open));
   setStatus(state.status.kind, state.status.text, state.status.progress);
   renderResults();
   renderExplorer();
@@ -684,7 +699,14 @@ function ownerResults(width) {
     tip: `${longDate(e.date)} · score ${e.score}\nSmart software: ${signed(e.extra, 2)}\n  better timing ${signed(e.timing, 2)}\n  buying from the grid ${signed(e.grid, 2)}\nClick to open the day`,
   }));
   const bestRows = best.map((e) => `<tr class="clickable" data-action="open-day" data-date="${e.date}"><td>${weekdayName(e.date).slice(0, 3)} ${shortDate(e.date)} ${e.date.slice(0, 4)}</td>
-    <td>${scoreHtml(e.score)}</td><td class="pos">${signed(e.extra, 2)}</td><td>${signed(e.timing, 2)}</td><td>${signed(e.grid, 2)}</td></tr>`).join('');
+    <td>${scoreHtml(e.score)}</td><td>${esc(weatherText(traitOf(e.date)))}</td><td class="pos">${signed(e.extra, 2)}</td><td>${signed(e.timing, 2)}</td><td>${signed(e.grid, 2)}</td></tr>`).join('');
+  const goodTraits = good.map((e) => traitOf(e.date));
+  const sunny = goodTraits.filter((x) => x.sky === 'sunny').length;
+  const windy = goodTraits.filter((x) => x.wind === 'windy' || x.wind === 'very windy').length;
+  const both = goodTraits.filter((x) => x.sky === 'sunny' && (x.wind === 'windy' || x.wind === 'very windy')).length;
+  const goodSum = (k) => good.reduce((a, e) => a + e[k], 0);
+  const goodText = good.length
+    ? `<p>Of the ${num(good.length, 0)} days scoring 50 or more, <b>${num(sunny, 0)} were sunny</b> and <b>${num(windy, 0)} windy</b> (${num(both, 0)} both). On those days smart software won ${signed(goodSum('timing'))} by better timing and ${signed(goodSum('grid'))} by buying from the grid.</p>` : '';
 
   const T = Object.fromEntries([...OWNER_ALL, ...(sim.results.actual ? ['actual'] : [])].map((id) => [id, strategyTotals(id, 0, n)]));
   let actualText = '';
@@ -703,7 +725,9 @@ function ownerResults(width) {
   const dayTotals = { today: strategyTotals('manual', 0, n), smart: strategyTotals('daySmart', 0, n) };
 
   return `
-    <h2>Result · ${periodText(sim)}</h2>
+    <details class="fold"${foldAttr('result')}>
+    <summary><h2>Result · ${periodText(sim)}</h2><span class="sum">${signed(total)} over ${num(days, 0)} days · ${signed(total / days, 2)} a day · ${num(good.length, 0)} days scoring 50+</span></summary>
+    <div class="body">
     <div class="hero"><span class="value num">${signed(total)}</span>
       <span class="label">more with smart software than today's way, over these ${num(days, 0)} days – on average <b>${signed(total / days, 2)}</b> a day.</span></div>
     <div class="tiles">
@@ -713,13 +737,17 @@ function ownerResults(width) {
     </div>
     <p>${yearText}${later ? ` With the electricity tax from 2028 the same days give <b>${signed(later.extra)}</b> (better timing ${signed(later.timing)}, buying from the grid ${signed(later.grid)}).` : ''}</p>
     <p class="muted small">"Today" is the rule under Setup → How it is run: the battery stores solar and covers the house, sells in the day's ${num(s.manualSellHours, 0)} best hours when it gets ${price(s.manualSellFloor)} kr./kWh or more, and buys from the grid only at ${price(s.manualBuyBelow)} or less. Every day smart software starts and ends with the battery at the same level as today, so the difference is pure cash.</p>
+    ${goodText}
     ${actualText}
     ${notices(sim, { period: false })}
+    </div>
+    </details>
     <h3>What each day could have earned extra</h3>
     ${legend([{ label: 'Better timing', color: 'var(--c-yellow)' }, { label: 'Buying from the grid', color: 'var(--c-blue)' }])}
     ${stackedBars({ width, bars })}
     <p class="muted small">Hover a day for the numbers, click it to open the day.</p>
-    ${best.length ? `<h3>The best days</h3><div class="table-wrap"><table><thead><tr><th>Day</th><th>Score</th><th>Smart software</th><th>Better timing</th><th>Buying from the grid</th></tr></thead><tbody>${bestRows}</tbody></table></div>` : ''}
+    ${best.length ? `<details class="more"${foldAttr('best')}><summary>The ${num(best.length, 0)} best days – the best: ${weekdayName(best[0].date).slice(0, 3)} ${shortDate(best[0].date)} ${best[0].date.slice(0, 4)}, ${signed(best[0].extra, 2)}</summary>
+      <div class="table-wrap"><table><thead><tr><th>Day</th><th>Score</th><th>Weather</th><th>Smart software</th><th>Better timing</th><th>Buying from the grid</th></tr></thead><tbody>${bestRows}</tbody></table></div></details>` : ''}
     <details class="more"><summary>Numbers behind it</summary>
       <p class="small">Day by day over the period: today costs ${money(dayTotals.today.netWithWear)}, smart software ${money(dayTotals.smart.netWithWear)} (incl. wear, − = income). Smart software buys ${energy(dayTotals.smart.gridToBat)} into the battery against today's ${energy(dayTotals.today.gridToBat)}, and sells ${energy(dayTotals.smart.batToGrid)} against ${energy(dayTotals.today.batToGrid)}.</p>
       <p class="small">Planning across midnight as well, with the battery free to end each day anywhere, the period gives: smart, solar only ${signed(T.manual.netWithWear - T.smartSolar.netWithWear)} and smart software ${signed(T.manual.netWithWear - T.smartGrid.netWithWear)} over today's way. That is a second estimate, usually a little higher, because energy can be carried from one day to the next.</p>
@@ -857,12 +885,60 @@ function ownerStep(step) {
     const e = list[0];
     return `<div class="day-head">${scoreHtml(e.score, true)}<p class="headline">Smart software: <span class="${e.extra > 0.005 ? 'pos' : ''}">${signed(e.extra, 2)}</span> this day</p></div>
       <p class="subtle">${parts} · ${signed(running)} since ${since}${actual}</p>
+      ${traitChips(traitOf(e.date))}
+      ${winsHtml(gainSource(sim.results.manual, sim.results.daySmart, sim.hours, step.from, step.to))}
       ${ownerDay(step)}`;
   }
   const good = list.filter((e) => e.score >= 50).length;
   return `<p class="headline">Smart software: <span class="${sum('extra') > 0.005 ? 'pos' : ''}">${signed(sum('extra'), 2)}</span> ${unit}</p>
     <p class="subtle">${parts} · ${num(good, 0)} day${good === 1 ? '' : 's'} scoring 50+ · ${signed(running)} since ${since}${actual}</p>
     ${ownerDays(step, list)}`;
+}
+
+function traitOf(date) {
+  return state.sim.traits.find((x) => x.date === date);
+}
+
+const SKY_LABELS = { sunny: 'Sunny', 'partly sunny': 'Partly sunny', cloudy: 'Cloudy', none: 'No sun' };
+
+function weatherText(t) {
+  if (!t) return '–';
+  return [t.sky === 'none' ? 'no sun' : t.sky, t.wind].filter(Boolean).join(' · ');
+}
+
+// @req LAB-19
+function traitChips(t) {
+  if (!t) return '';
+  const chips = [`${SKY_LABELS[t.sky]} · ${energy(t.solarKwh, 0)} solar`];
+  if (t.windMs !== null) chips.push(`${t.wind[0].toUpperCase()}${t.wind.slice(1)} · ${num(t.windMs, 0)} m/s`);
+  if (t.minBuy) chips.push(`Cheapest ${price(t.minBuy.price)} kr. at ${hh(t.minBuy.hour)}:00 · dearest ${price(t.maxBuy.price)} kr. at ${hh(t.maxBuy.hour)}:00`);
+  if (t.maxSell) chips.push(`Best sale ${price(t.maxSell.price)} kr. at ${hh(t.maxSell.hour)}:00`);
+  if (t.negativeHours) chips.push(`${num(t.negativeHours, 0)} h with a negative sell price`);
+  return `<div class="chips">${chips.map((c) => `<span class="chip">${esc(c)}</span>`).join('')}</div>`;
+}
+
+function hourGroups(list) {
+  const groups = [];
+  for (const h of list) {
+    const last = groups[groups.length - 1];
+    if (last && h === last.to) last.to = h + 1;
+    else groups.push({ from: h, to: h + 1 });
+  }
+  return groups.map((g) => hourRange(g.from, g.to)).join(', ');
+}
+
+function joinAnd(parts) {
+  return parts.length < 2 ? parts.join('') : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+}
+
+// @req LAB-19
+function winsHtml(src) {
+  const parts = [];
+  if (src.buy) parts.push(`buys ${energy(src.buy.kwh, 1)} more from the grid at ${hourGroups(src.buy.hours)} for ${price(src.buy.avg)} kr./kWh`);
+  if (src.sell) parts.push(`sells ${energy(src.sell.kwh, 1)} more at ${hourGroups(src.sell.hours)} for ${price(src.sell.avg)} kr./kWh`);
+  if (src.store) parts.push(`stores ${energy(src.store.kwh, 1)} more solar at ${hourGroups(src.store.hours)}, which today sells for ${price(src.store.avg)} kr./kWh`);
+  if (src.cover) parts.push(`covers the house with ${energy(src.cover.kwh, 1)} more at ${hourGroups(src.cover.hours)}, where power costs ${price(src.cover.avg)} kr./kWh`);
+  return `<p class="wins"><b>Where smart software wins:</b> ${parts.length ? `it ${joinAnd(parts)}` : 'nowhere this day – today\'s rule does as well'}.</p>`;
 }
 
 function before(rows, from, cfg, id) {
@@ -1005,7 +1081,7 @@ function ownerDays(step, list) {
     const t = totals(sim.results.manual, e.from, e.to).netWithWear;
     const s = totals(sim.results.daySmart, e.from, e.to).netWithWear;
     return `<tr class="clickable" data-action="open-day" data-date="${e.date}"><td>${weekdayName(e.date).slice(0, 3)} ${shortDate(e.date)}</td>
-      <td>${scoreHtml(e.score)}</td><td>${money(t, 2)}</td><td>${money(s, 2)}</td><td class="${e.extra > 0.005 ? 'pos' : ''}">${signed(e.extra, 2)}</td></tr>`;
+      <td>${scoreHtml(e.score)}</td><td>${esc(weatherText(traitOf(e.date)))}</td><td>${money(t, 2)}</td><td>${money(s, 2)}</td><td class="${e.extra > 0.005 ? 'pos' : ''}">${signed(e.extra, 2)}</td></tr>`;
   }).join('');
   const t = totals(sim.results.manual, step.from, step.to).netWithWear;
   const s = totals(sim.results.daySmart, step.from, step.to).netWithWear;
@@ -1013,8 +1089,8 @@ function ownerDays(step, list) {
     ${legend([{ label: 'Better timing', color: 'var(--c-yellow)' }, { label: 'Buying from the grid', color: 'var(--c-blue)' }])}
     ${stackedBars({ width, bars })}
     <div class="table-wrap"><table>
-      <thead><tr><th>Day</th><th>Score</th><th>${key('manual')}Today: cost incl. wear</th><th>${key('daySmart')}Smart software</th><th>Extra</th></tr></thead>
-      <tbody>${rows}<tr class="highlight"><td>Total</td><td></td><td>${money(t)}</td><td>${money(s)}</td><td>${signed(t - s)}</td></tr></tbody>
+      <thead><tr><th>Day</th><th>Score</th><th>Weather</th><th>${key('manual')}Today: cost incl. wear</th><th>${key('daySmart')}Smart software</th><th>Extra</th></tr></thead>
+      <tbody>${rows}<tr class="highlight"><td>Total</td><td></td><td></td><td>${money(t)}</td><td>${money(s)}</td><td>${signed(t - s)}</td></tr></tbody>
     </table></div><p class="hint">Cost incl. wear per day (− = income). Select a day to see it told hour by hour.</p>`;
 }
 
@@ -1343,6 +1419,13 @@ async function start() {
   const lab = $('#lab');
   lab.addEventListener('change', onChange);
   lab.addEventListener('click', onClick);
+  // toggle does not bubble, so listen while it travels down to the expander.
+  lab.addEventListener('toggle', (event) => {
+    const name = event.target.dataset?.fold;
+    if (!name) return;
+    state.folds[name] = event.target.open;
+    save('lab.folds', state.folds);
+  }, true);
   document.addEventListener('pointermove', onPointer);
   document.addEventListener('pointerdown', onPointer);
   window.addEventListener('resize', onResize);
