@@ -6,7 +6,7 @@
 
 import { addDays } from '../js/time.js';
 
-export const STRATEGIES = Object.freeze(['none', 'self', 'threshold', 'smartSolar', 'smartGrid']);
+export const STRATEGIES = Object.freeze(['nothing', 'none', 'self', 'threshold', 'manual', 'smartSolar', 'smartGrid']);
 
 const EPS = 1e-9;
 
@@ -31,6 +31,7 @@ export function batteryConfig(settings) {
     wear: s.wear,
     margin: s.gridMargin,
     threshold: s.sellThreshold,
+    manualBuyBelow: s.manualBuyBelow,
     step: s.stepKwh,
     curtail: s.curtail,
     planner: s.planner,
@@ -82,11 +83,18 @@ export function hourFlows(pv, load, buy, sell, dE, cfg) {
 }
 
 /** What the optimiser minimises for one hour; Infinity when the move is not allowed. */
-function moveCost(pv, load, buy, sell, dE, cfg, gridCharging) {
+function moveCost(pv, load, buy, sell, dE, cfg, gridLimit) {
   const f = hourFlows(pv, load, buy, sell, dE, cfg);
   if (!f) return Infinity;
-  if (!gridCharging && f.gridToBat > EPS) return Infinity;
+  if (f.gridToBat > EPS && buy > gridLimit) return Infinity;
   return f.cost - f.revenue + f.wear + f.gridToBat * cfg.margin;
+}
+
+/** Grid charging as a price limit: false = never, true = whenever it pays, a number = at or below it. */
+function gridLimitOf(gridCharging) {
+  if (gridCharging === true) return Infinity;
+  if (gridCharging === false) return -Infinity;
+  return gridCharging;
 }
 
 /**
@@ -96,6 +104,7 @@ function moveCost(pv, load, buy, sell, dE, cfg, gridCharging) {
  */
 // @req LAB-07
 export function planWindow(inp, i0, i1, e0, cfg, gridCharging) {
+  const gridLimit = gridLimitOf(gridCharging);
   const step = cfg.step;
   const K = Math.floor((cfg.eMax - cfg.eMin) / step + EPS) + 1;
   const up = Math.floor((cfg.pc * cfg.etaC) / step + EPS);
@@ -121,7 +130,7 @@ export function planWindow(inp, i0, i1, e0, cfg, gridCharging) {
       }
     } else {
       for (let d = -down; d <= up; d++) {
-        costs[d + down] = moveCost(inp.pv[i], inp.load[i], inp.buy[i], inp.sell[i], d * step, cfg, gridCharging);
+        costs[d + down] = moveCost(inp.pv[i], inp.load[i], inp.buy[i], inp.sell[i], d * step, cfg, gridLimit);
       }
       for (let k = 0; k < K; k++) {
         // Staying put wins ties, so the plan never cycles for nothing.
@@ -156,7 +165,7 @@ export function planWindow(inp, i0, i1, e0, cfg, gridCharging) {
 /**
  * Stored energy at every hour boundary for an optimised strategy.
  * Day-ahead: plan at 13:00 for the hours until tomorrow midnight, carry out 24 h.
- * Hindsight: one plan over the whole period.
+ * Hindsight: one plan over the whole period. gridCharging as in planWindow.
  */
 // @req LAB-07
 export function planPeriod(inp, cfg, gridCharging) {
@@ -223,24 +232,22 @@ export function ruleDeltas(inp, cfg, withThreshold) {
 // @req LAB-06 LAB-08
 export function runStrategy(inp, cfg, strategy) {
   const n = inp.hours.length;
+  if (strategy === 'nothing') inp = { ...inp, pv: new Float64Array(n) };
   let deltas;
-  if (strategy === 'none') {
+  if (strategy === 'none' || strategy === 'nothing') {
     deltas = new Float64Array(n);
   } else if (strategy === 'self' || strategy === 'threshold') {
     deltas = ruleDeltas(inp, cfg, strategy === 'threshold');
   } else {
-    const energy = planPeriod(inp, cfg, strategy === 'smartGrid');
+    const gridCharging = strategy === 'smartGrid' ? true : strategy === 'manual' ? cfg.manualBuyBelow : false;
+    const energy = planPeriod(inp, cfg, gridCharging);
     deltas = new Float64Array(n);
     for (let i = 0; i < n; i++) deltas[i] = energy[i + 1] - energy[i];
   }
 
-  const hasBattery = strategy !== 'none';
   let solarE = 0;
   let gridE = 0;
-  let startE = hasBattery ? cfg.eStart : 0;
-  if (hasBattery && strategy.startsWith('smart')) {
-    startE = cfg.eMin + Math.round((cfg.eStart - cfg.eMin) / cfg.step) * cfg.step;
-  }
+  let startE = startEnergy(cfg, strategy);
   const rows = new Array(n);
   for (let i = 0; i < n; i++) {
     const dE = deltas[i];
@@ -279,10 +286,20 @@ export function runStrategy(inp, cfg, strategy) {
   return { strategy, rows };
 }
 
-/** What the battery mainly did in an hour, for labels and the hourly table. */
+/** Stored energy at the period start: none without a battery, snapped to the optimiser's grid when planned. */
+export function startEnergy(cfg, strategy) {
+  if (strategy === 'none' || strategy === 'nothing') return 0;
+  if (strategy === 'self' || strategy === 'threshold') return cfg.eStart;
+  return cfg.eMin + Math.round((cfg.eStart - cfg.eMin) / cfg.step) * cfg.step;
+}
+
+/**
+ * What the battery mainly did in an hour, for labels and the hourly table. A small
+ * export next to a larger house cover (the optimiser moves in whole steps) is a cover.
+ */
 export function hourAction(row) {
   const min = 0.05;
-  if (row.batToGrid > min) return 'sell';
+  if (row.batToGrid > min && row.batToGrid >= row.batToLoad) return 'sell';
   if (row.gridToBat > min) return 'buy';
   if (row.pvToBat > min) return 'store';
   if (row.batToLoad > min) return 'cover';

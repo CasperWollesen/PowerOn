@@ -22,6 +22,7 @@
   --c-yellow: #c98500;
   --c-magenta: #d55181;
   --c-violet: #9085e9;
+  --c-green: #2f9e44;
   --c-gray: #5b6472;
 
   --radius: 16px;
@@ -49,6 +50,7 @@
   --c-yellow: #eda100;
   --c-magenta: #e87ba4;
   --c-violet: #6250d6;
+  --c-green: #008300;
   --c-gray: #b3bac4;
 }
 
@@ -248,6 +250,22 @@ td .key { display: inline-block; width: 10px; height: 10px; border-radius: 3px; 
 .formula { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 0.84rem; color: var(--muted); }
 .notice { border-left: 3px solid var(--warn); padding: 4px 0 4px 10px; margin: 8px 0; }
 
+/* The day in words (LAB-17) */
+.mode { margin: 0 0 14px; }
+.stories { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin: 10px 0; }
+.story { background: var(--surface-2); border-radius: var(--radius-sm); padding: 12px 14px; }
+.story h4 { margin: 0 0 2px; font-size: 0.98rem; display: flex; align-items: center; }
+.timeline { list-style: none; padding: 0; margin: 8px 0 0; font-size: 0.9rem; }
+.timeline li { display: grid; grid-template-columns: 54px 1fr auto; gap: 8px; padding: 5px 0; border-top: 1px solid var(--border); }
+.timeline li:first-child { border-top: 0; }
+.timeline .when { font-variant-numeric: tabular-nums; font-weight: 600; }
+.timeline .cash { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+.timeline .level { color: var(--muted); font-size: 0.82rem; }
+.why { border-left: 3px solid var(--c-blue); padding: 6px 0 6px 12px; margin: 10px 0; }
+.why ul { margin: 6px 0 0; padding-left: 18px; }
+.why li { margin: 3px 0; }
+.headline { font-size: 1.05rem; font-weight: 600; margin: 8px 0; }
+
 footer { color: var(--muted); font-size: 0.82rem; margin-top: 20px; }
 
 @media (max-width: 560px) {
@@ -255,6 +273,8 @@ footer { color: var(--muted); font-size: 0.82rem; margin-top: 20px; }
   h1 { font-size: 1.3rem; }
   .hero .value { font-size: 2.1rem; }
   details.group > .body { padding-left: 0; }
+  .timeline li { grid-template-columns: 48px 1fr; }
+  .timeline .cash { grid-column: 2; text-align: left; white-space: normal; }
   .card { padding: 14px 12px; }
 }
 

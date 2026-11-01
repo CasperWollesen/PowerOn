@@ -127,7 +127,7 @@ app.js        state, rendering, events (the only DOM code)
 data.js       stromligning.dk prices per month, Open-Meteo irradiance ← only network
 model.js      settings, hours, buy/sell prices, solar, house, heat pump, cars
 optimizer.js  hourFlows(), dynamic programming, day-ahead planner, rule strategies
-summary.js    totals, day/week/month steps, cumulative saving, break-even
+summary.js    totals, day/week/month steps, cumulative saving, break-even, day story, payback
 import.js     CSV → hourly measurements (memory only)
 charts.js     SVG line, bar and day panels
 ```

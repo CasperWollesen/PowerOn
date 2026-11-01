@@ -68,6 +68,9 @@ Requirement → the code that implements it → the tests that verify it.
 | [LAB-12](battery-lab.md#lab-12--import-own-measurements) | Import own measurements | Implemented | test | `battery-lab/app.js`, `battery-lab/import.js` | `battery-lab.test.js` |
 | [LAB-13](battery-lab.md#lab-13--settings-behind-expanders) | Settings behind expanders | Implemented | manual | `battery-lab/app.js`, `battery-lab/model.js` | `battery-lab.test.js` |
 | [LAB-14](battery-lab.md#lab-14--look-and-language) | Look and language | Implemented | manual | `battery-lab/lab.css`, `battery-lab/index.html` | – |
+| [LAB-15](battery-lab.md#lab-15--two-views) | Two views | Implemented | manual | `battery-lab/app.js` | – |
+| [LAB-16](battery-lab.md#lab-16--purchase-prices-and-payback) | Purchase prices and payback | Implemented | test | `battery-lab/app.js`, `battery-lab/summary.js` | `battery-lab.test.js` |
+| [LAB-17](battery-lab.md#lab-17--the-day-in-words) | The day in words | Implemented | test | `battery-lab/app.js`, `battery-lab/summary.js` | `battery-lab.test.js` |
 | [NFR-01](non-functional.md#nfr-01--plain-web-no-build) | Plain web, no build | Implemented | check | `index.html` | – |
 | [NFR-02](non-functional.md#nfr-02--language-and-formatting) | Language and formatting | Implemented | test | `js/format.js` | `time.test.js` |
 | [NFR-03](non-functional.md#nfr-03--mobile-first) | Mobile first | Implemented | manual | `css/styles.css` | – |
@@ -121,4 +124,4 @@ Requirement → the code that implements it → the tests that verify it.
 | [VIEW-02](views.md#view-02--simple) | Simple | Implemented | manual | `js/day-view.js` | – |
 | [VIEW-03](views.md#view-03--nerd) | Nerd | Implemented | manual | `js/day-view.js` | – |
 
-114 requirements · 109 with code tags · 57 with tests.
+117 requirements · 112 with code tags · 59 with tests.

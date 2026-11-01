@@ -105,6 +105,28 @@ export function barChart({ width, height = 200, bars, color }) {
     + `${yAxis(scale, y, pad.l, pad.l + w)}${marks}</svg></div>`;
 }
 
+/**
+ * Battery level of several strategies as lines over the day, % of capacity.
+ * series: [{ color, values }] with one value per hour boundary (n + 1).
+ */
+// @req LAB-10
+export function levelLines({ width, hours, series, minPct, tips }) {
+  const pad = { l: 48, r: 10, t: 8, b: 22 };
+  const height = 150;
+  const w = Math.max(120, width - pad.l - pad.r);
+  const h = height - pad.t - pad.b;
+  const n = hours.length;
+  const band = w / n;
+  const x = (i) => pad.l + i * band;
+  const scale = { min: 0, max: 100, ticks: [0, 25, 50, 75, 100] };
+  const y = (v) => pad.t + ((scale.max - v) / (scale.max - scale.min)) * h;
+  const lines = series.map((s) => `<path d="${s.values.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('')}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`).join('');
+  const floor = `<line class="limit" x1="${pad.l}" x2="${pad.l + w}" y1="${y(minPct).toFixed(1)}" y2="${y(minPct).toFixed(1)}"/>`;
+  const hits = hours.map((_, i) => `<rect class="hit" x="${x(i).toFixed(1)}" y="${pad.t}" width="${band.toFixed(1)}" height="${h}" data-tip="${esc(tips[i])}"/>`).join('');
+  return `<div class="chart"><svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img">`
+    + `${yAxis(scale, y, pad.l, pad.l + w, { zero: false })}${hourAxis(hours, x, band, height)}${floor}${lines}${hits}</svg></div>`;
+}
+
 function hourAxis(hours, x, band, height) {
   return hours.map((h, i) => (h.hour % 3 === 0 && (i === 0 || hours[i - 1].hour !== h.hour)
     ? `<text x="${(x(i) + band / 2).toFixed(1)}" y="${height - 6}" text-anchor="middle">${String(h.hour).padStart(2, '0')}</text>` : '')).join('');

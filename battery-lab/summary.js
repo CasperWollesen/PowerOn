@@ -1,7 +1,8 @@
 // Battery Lab summaries: totals over any range of hours, day/week/month steps,
-// running totals and the break-even rules. Pure (LAB-01).
+// running totals, break-even rules, the day in words and payback. Pure (LAB-01).
 
 import { addDays } from '../js/time.js';
+import { hourAction } from './optimizer.js';
 
 const SUM_FIELDS = [
   'importKwh', 'exportKwh', 'cost', 'revenue', 'wear', 'pv', 'load', 'pvToLoad', 'pvToBat', 'pvToGrid',
@@ -48,6 +49,16 @@ export function weekStart(date) {
   const [y, m, d] = date.split('-').map(Number);
   const weekday = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7;
   return addDays(date, -weekday);
+}
+
+/** ISO 8601 week number of a 'YYYY-MM-DD' date (weeks start on Monday). */
+export function isoWeek(date) {
+  const [y, m, d] = date.split('-').map(Number);
+  const thursday = new Date(Date.UTC(y, m - 1, d));
+  thursday.setUTCDate(thursday.getUTCDate() - ((thursday.getUTCDay() + 6) % 7) + 3);
+  const firstThursday = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 4));
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - ((firstThursday.getUTCDay() + 6) % 7) + 3);
+  return 1 + Math.round((thursday - firstThursday) / 604800000);
 }
 
 /**
@@ -134,4 +145,99 @@ export function breakEven(cfg, day) {
     r.pays = r.gain > 0 && r.to.hour > r.from.hour;
   }
   return { eta, wear: w, margin: m, rules };
+}
+
+/** A value over `days` days scaled to a year of 365 days. */
+export function perYear(value, days) {
+  return days > 0 ? (value * 365) / days : 0;
+}
+
+/**
+ * The day in words: consecutive hours with the same battery action as one block.
+ * Each block: { action, from, to, sold, bought, stored, covered, soldCash,
+ * boughtCash, coverValue, sellPrices, buyPrices, endEnergy }.
+ */
+// @req LAB-17
+export function dayStory(rows, hours) {
+  const blocks = [];
+  rows.forEach((r, i) => {
+    const action = hourAction(r);
+    let block = blocks[blocks.length - 1];
+    if (!block || block.action !== action) {
+      block = {
+        action, from: hours[i].hour, to: hours[i].hour + 1, sold: 0, bought: 0, stored: 0, covered: 0,
+        soldCash: 0, boughtCash: 0, coverValue: 0, sellPrices: [], buyPrices: [], endEnergy: r.energy,
+      };
+      blocks.push(block);
+    }
+    block.to = hours[i].hour + 1;
+    block.sold += r.batToGrid;
+    block.bought += r.gridToBat;
+    block.stored += r.pvToBat;
+    block.covered += r.batToLoad;
+    block.soldCash += r.batToGrid * r.sell;
+    block.boughtCash += r.gridToBat * r.buy;
+    block.coverValue += r.batToLoad * r.buy;
+    if (r.batToGrid > 0.05) block.sellPrices.push(r.sell);
+    if (r.gridToBat > 0.05) block.buyPrices.push(r.buy);
+    block.endEnergy = r.energy;
+  });
+  return blocks;
+}
+
+/**
+ * Why two strategies differ over the same hours: kWh bought into and sold from the
+ * battery, their average prices, battery cover of the house, wear, the level at the
+ * end, and the net difference (positive = `other` is cheaper than `base`).
+ */
+// @req LAB-17
+export function compareRuns(baseRows, otherRows, from, to) {
+  const side = (rows) => {
+    const t = totals(rows, from, to);
+    let boughtCost = 0;
+    for (let i = from; i < to; i++) if (rows[i].priced) boughtCost += rows[i].gridToBat * rows[i].buy;
+    return {
+      ...t,
+      avgBuy: t.gridToBat > 0.01 ? boughtCost / t.gridToBat : null,
+      avgSell: t.batToGrid > 0.01 ? t.soldRevenue / t.batToGrid : null,
+      endEnergy: rows[to - 1]?.energy ?? 0,
+    };
+  };
+  const base = side(baseRows);
+  const other = side(otherRows);
+  return {
+    base,
+    other,
+    extra: base.netWithWear - other.netWithWear,
+    boughtMore: other.gridToBat - base.gridToBat,
+    soldMore: other.batToGrid - base.batToGrid,
+    coveredMore: other.batToLoad - base.batToLoad,
+    wearMore: other.wear - base.wear,
+  };
+}
+
+/**
+ * Purchase prices for a new installation (incl. VAT). Panels and the inverter count
+ * for solar only; the battery only with a battery; electrician and other parts for both.
+ */
+// @req LAB-16
+export function investment(settings) {
+  const i = settings.invest;
+  const kwp = settings.solar.arrays.reduce((a, b) => a + b.kwp, 0);
+  const parts = [
+    { id: 'panels', amount: kwp * i.panelPerKwp, solar: true },
+    { id: 'inverter', amount: i.inverter, solar: true },
+    { id: 'battery', amount: settings.battery.capacityKwh * i.batteryPerKwh, solar: false },
+    { id: 'electrician', amount: i.electrician, solar: true },
+    { id: 'other', amount: i.other, solar: true },
+  ];
+  const solarOnly = parts.filter((p) => p.solar).reduce((a, p) => a + p.amount, 0);
+  const withBattery = parts.reduce((a, p) => a + p.amount, 0);
+  return { kwp, parts, solarOnly, withBattery };
+}
+
+/** Simple payback in years; Infinity when the setup saves nothing. */
+// @req LAB-16
+export function paybackYears(amount, savingPerYear) {
+  return savingPerYear > 0 ? amount / savingPerYear : Infinity;
 }

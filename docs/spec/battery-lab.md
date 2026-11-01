@@ -1,14 +1,18 @@
 # Battery Lab (`LAB`)
 
-A side page, separate from the PowerOn app, that answers one question for a
-household with solar panels and a home battery:
+A side page, separate from the PowerOn app, that answers two questions:
 
-> **What would the battery have earned, hour by hour, and how much more if it
-> also charged from the grid when power is cheap?**
+> **Existing installation:** what would smart control software earn on top of how
+> the battery is run today – selling stored solar at the best hours by hand, and
+> buying from the grid only when power is nearly free?
+>
+> **New installation:** what would solar panels and a battery cost and save for a
+> household that has neither yet?
 
 It replays a past period with real public prices, modelled or imported solar and
-consumption, and several battery strategies side by side. It is a calculator for
-deciding whether automatic battery control is worth building, not trading advice.
+consumption, and several strategies side by side. It is a calculator for deciding
+whether automatic battery control is worth building, and whether a setup is worth
+buying – not trading advice.
 See [decision 0010](../decisions/0010-battery-lab-side-page.md).
 
 ### LAB-01 · Separate page
@@ -87,23 +91,30 @@ The simulation MUST respect the physical limits the owner enters.
 ### LAB-06 · Strategies side by side
 **Status:** Implemented · **Priority:** Must · **Verify:** test
 
-The same hours, prices, solar and consumption MUST be run through five strategies:
+The same hours, prices, solar and consumption MUST be run through these strategies:
 
-1. **No battery** — solar covers the house, the rest is bought or sold.
-2. **Solar self-use** — the battery stores solar surplus and covers the house;
+1. **No solar, no battery** — everything is bought from the grid.
+2. **Solar, no battery** — solar covers the house, the rest is bought or sold.
+3. **Solar self-use** — the battery stores solar surplus and covers the house;
    it never sells and never buys. What a hybrid inverter does out of the box.
-3. **Sell above a threshold** — self-use, plus selling from the battery at full
+4. **Sell above a threshold** — self-use, plus selling from the battery at full
    power whenever the sell price is at or above a threshold.
-4. **Smart, solar only** — the optimiser plans charging and selling, but the
+5. **Today (manual)** — how the existing installation is run by hand: stored solar
+   is sold at the best hours, and the battery is only topped up from the grid when
+   the full buy price is at or below a "nearly free" limit (default 0,30 kr./kWh).
+   Modelled with the optimiser, so the timing is perfect; the real manual result is
+   likely worse, which makes the extra from software a cautious estimate.
+6. **Smart, solar only** — the optimiser plans charging and selling, but the
    battery is only charged from solar surplus.
-5. **Smart, solar + grid** — the optimiser may also charge from the grid.
+7. **Smart software** (smart, solar + grid) — the optimiser may also charge from
+   the grid whenever that pays after losses, wear and margin.
 
-The difference between 4 and 5 is reported as the value of grid charging.
+The difference between 5 and 7 is reported as the value of smart software.
 
 ### LAB-07 · Optimiser
 **Status:** Implemented · **Priority:** Must · **Verify:** test
 
-Strategies 4 and 5 MUST be planned by dynamic programming over the battery level,
+Strategies 5, 6 and 7 MUST be planned by dynamic programming over the battery level,
 minimising, per planning window:
 import cost − export revenue + wear cost + grid-charging margin − value left.
 
@@ -118,6 +129,8 @@ import cost − export revenue + wear cost + grid-charging margin − value left
   first 24 hours are carried out. The first plan starts at the period start with
   that day's prices.
 - **Hindsight planner**: one plan over the whole period; an upper bound.
+- Grid charging is either not allowed (6), allowed only at or below a buy price (5),
+  or allowed whenever it pays (7).
 - Energy left at the end of a window is valued at the window's lowest buy price
   × discharge efficiency, less wear, never below zero.
 - Solar and consumption inside a window are taken as known; this is optimistic and
@@ -140,12 +153,17 @@ in the battery.
 **Status:** Implemented · **Priority:** Must · **Verify:** test
 
 For the chosen period the lab MUST show, per strategy: net electricity cost, wear,
-cost including wear, the saving against no battery, kWh sold from the battery,
-kWh charged from the grid, and equivalent full cycles (also per year).
+cost including wear, kWh sold from the battery, kWh charged from the grid, and
+equivalent full cycles (also per year). What is compared depends on the view
+(LAB-15).
 
-- The headline is the extra from grid charging (strategy 5 minus 4), in total and
-  per month.
-- A cumulative chart shows each strategy's saving against no battery over the period.
+- Existing installation: the headline is the extra from smart software over today
+  (strategy 7 against 5), for the period and per year, next to the same figure with
+  the electricity tax from 2028. Nothing is compared with having no installation.
+  A cumulative chart shows the extra growing over the period.
+- New installation: savings are against no solar and no battery (LAB-16).
+- Figures per year are scaled from the period; a period shorter than a year is
+  labelled as seasonal.
 - Subscription fees are excluded; they are the same in every strategy.
 
 ### LAB-10 · Day, week and month explorer
@@ -154,11 +172,14 @@ kWh charged from the grid, and equivalent full cycles (also per year).
 The owner MUST be able to step through the period by day, week or month.
 
 - Previous / next buttons, a date field and a strategy picker.
-- Day: prices (buy and sell), energy in and out of the battery, and the battery
-  level split by origin, as three charts sharing the hour axis, plus an hourly
-  table. Lists the best sell hours and the hours bought from the grid.
-- Week and month: one bar per day for the saving, a table per day for every
-  strategy, and selecting a day opens it.
+- Existing installation, day: the day told in words for today and for smart
+  software side by side (LAB-17), why they differ, prices, the battery level of both
+  as two lines, smart software's energy in and out, and an hour table with both
+  strategies next to each other. Battery content by origin is one level down.
+- Existing installation, week and month: one bar per day for the extra from smart
+  software, a table with today, smart and the extra per day; selecting a day opens it.
+- New installation: the strategies of LAB-16 with savings against no solar and no
+  battery; the day shows the selected strategy's charts as before.
 - Every step shows the running total from the period start to the end of the step.
 
 ### LAB-11 · When does it pay?
@@ -202,9 +223,10 @@ would have done.
 All settings MUST sit in closed expanders, each with a one-line summary, and MUST
 be remembered on the device (not imported data). Reset restores the defaults.
 
-- Defaults describe a reference household: Horsens (DK1, Konstant), 60 kWh battery
-  kept between 20 % and 100 %, 10 kW, solar, house and two electric cars. No names,
-  addresses or exact coordinates; location is the town only.
+- Defaults describe a reference household: Horsens (DK1, Konstant), a 60 kWh
+  self-built battery from an electric car, kept between 20 % and 100 %, 10 kW,
+  solar, house and two electric cars. No names, addresses or exact coordinates;
+  location is the town only.
 - Unknown defaults (solar size, consumption, car use, supplier fees) are marked as
   assumptions on the page.
 
@@ -216,3 +238,46 @@ be remembered on the device (not imported data). Reset restores the defaults.
 - English UI, Danish number format through `js/format.js`.
 - Charts have one value axis each, a legend for two or more series, hover details
   and a table view.
+
+### LAB-15 · Two views
+**Status:** Implemented · **Priority:** Must · **Verify:** manual
+
+The page MUST offer two views, chosen at the top and remembered:
+
+- **Existing installation** (default): the installation is already paid for. Only
+  ways of running it are compared – today against smart software – so it is plain
+  what software would add. No figure is compared with having no solar or battery.
+- **New installation**: for a household with neither yet. Purchase prices are
+  editable, and the strategies are compared with buying everything from the grid.
+
+### LAB-16 · Purchase prices and payback
+**Status:** Implemented · **Priority:** Should · **Verify:** test
+
+The new-installation view MUST turn purchase prices into an investment and a simple
+payback time.
+
+- Parts, incl. VAT, all editable and marked as assumptions: panels with rails and
+  cables (kr. per kWp, mounted by the owner), hybrid inverter, battery (kr. per kWh),
+  authorised electrician (connection, battery, registration with the grid company),
+  and other parts.
+- The owner may mount rails and panels; all electrical connection is done by an
+  authorised electrician. The page says so.
+- Rows: no solar and no battery (the reference), solar only, solar + battery run by
+  the inverter (self-use), solar + battery with smart software. Each shows cost per
+  year, saving per year, investment and payback in years, for the prices as charged
+  and with the electricity tax from 2028.
+- Payback = investment ÷ saving per year; no saving means no payback.
+
+### LAB-17 · The day in words
+**Status:** Implemented · **Priority:** Must · **Verify:** test
+
+A day MUST be readable without the charts: consecutive hours with the same battery
+action become one line, e.g. "17–22 · sells 19,9 kWh at 1,70–2,21 kr. · +38 kr. ·
+battery 56 %".
+
+- Actions: sells, buys from the grid, stores solar, covers the house, waits.
+- Each line has the hours, the energy, the price range where money changes hands,
+  the cash of the battery's own trades, and the battery level at the end.
+- Today and smart software are shown side by side, with the battery level at
+  midnight for each, followed by why they differ: extra kWh bought and sold, the
+  average prices, the wear, and the net difference for the day.

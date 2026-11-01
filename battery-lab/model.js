@@ -49,7 +49,13 @@ export function defaultSettings() {
       { kwhPerDay: 8, chargerKw: 11, plugIn: 17, ready: 7, smart: true },
       { kwhPerDay: 5, chargerKw: 11, plugIn: 17, ready: 7, smart: true },
     ],
-    strategy: { wear: 0.1, gridMargin: 0.05, sellThreshold: 1.5, planner: 'dayAhead', stepKwh: 0.5, curtail: true },
+    strategy: {
+      wear: 0.1, gridMargin: 0.05, sellThreshold: 1.5, manualBuyBelow: 0.3,
+      planner: 'dayAhead', stepKwh: 0.5, curtail: true,
+    },
+    // Purchase prices incl. VAT for the new-installation view (LAB-16). Panels and
+    // rails mounted by the owner; electrical work by an authorised electrician.
+    invest: { panelPerKwp: 2000, inverter: 20000, batteryPerKwh: 1500, electrician: 15000, other: 5000 },
   };
 }
 
@@ -66,7 +72,9 @@ const BOUNDS = {
   'house.annualKwh': [0, 100000], 'house.heatPumpKwh': [0, 50000],
   'cars.kwhPerDay': [0, 150], 'cars.chargerKw': [1, 50], 'cars.plugIn': [0, 23], 'cars.ready': [0, 23],
   'strategy.wear': [0, 5], 'strategy.gridMargin': [0, 5], 'strategy.sellThreshold': [-5, 20],
-  'strategy.stepKwh': [0.1, 5],
+  'strategy.stepKwh': [0.1, 5], 'strategy.manualBuyBelow': [-5, 10],
+  'invest.panelPerKwp': [0, 100000], 'invest.inverter': [0, 1000000], 'invest.batteryPerKwh': [0, 100000],
+  'invest.electrician': [0, 1000000], 'invest.other': [0, 1000000],
 };
 const CHOICES = { 'prices.area': ['DK1', 'DK2'], 'strategy.planner': ['dayAhead', 'hindsight'] };
 

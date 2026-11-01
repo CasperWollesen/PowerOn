@@ -4,7 +4,10 @@ import {
   heatPumpSeries, carSeries, danishInstant, NORMAL_DEGREE_HOURS,
 } from '../../battery-lab/model.js';
 import { batteryConfig, hourFlows, planWindow, runStrategy } from '../../battery-lab/optimizer.js';
-import { totals, dayRanges, stepRange, shiftStep, breakEven, cumulativeSaving } from '../../battery-lab/summary.js';
+import {
+  totals, dayRanges, stepRange, shiftStep, breakEven, cumulativeSaving, dayStory, compareRuns, investment, paybackYears, perYear,
+  isoWeek,
+} from '../../battery-lab/summary.js';
 import { parseCsv, parseNumber, parseTimestamp, describeCsv, toHourly, completeHours, actualRows } from '../../battery-lab/import.js';
 import { monthsBetween } from '../../battery-lab/data.js';
 
@@ -224,6 +227,11 @@ test('LAB-10', 'days follow Danish midnight and steps clip to the period', () =>
   expect(month.last).toBe('2026-10-06');
   expect(shiftStep(days, 'month', '2026-10-03', -1)).toBe('2026-09-28');
   expect(shiftStep(days, 'week', '2026-10-05', 1)).toBeNull();
+  expect(isoWeek('2026-01-15')).toBe(3);
+  expect(isoWeek('2026-01-01')).toBe(1);
+  expect(isoWeek('2025-12-29')).toBe(1);
+  expect(isoWeek('2027-01-01')).toBe(53);
+  expect(isoWeek('2026-10-01')).toBe(40);
 });
 
 test('LAB-11', 'break-even prices follow the formulas', () => {
@@ -307,4 +315,67 @@ test('LAB-13', 'settings are clamped, completed and keep the lowest level below 
   const d = defaultSettings();
   expect(d.location.label).toBe('Horsens');
   expect(String(d.location.lat).length).toBeLessThan(6);
+});
+
+test('LAB-06 LAB-07', 'today (manual) only buys into the battery at or below the nearly-free limit', () => {
+  const inp = inputs([{ buy: 0.4, sell: 0.1 }, { buy: 0.2, sell: 0.1 }, { buy: 3, sell: 2.5 }, { buy: 3, sell: 2.5 }]);
+  const cfg = cfgFor({ manualBuyBelow: 0.25 });
+  const manual = runStrategy(inp, cfg, 'manual').rows;
+  expect(manual[0].gridToBat).toBe(0);
+  expect(manual[1].gridToBat).toBe(5);
+  const smart = runStrategy(inp, cfg, 'smartGrid').rows;
+  expect(smart[0].gridToBat).toBe(5);
+  expect(smart[1].gridToBat).toBe(5);
+  expect(totals(smart).netWithWear).toBeLessThan(totals(manual).netWithWear);
+});
+
+test('LAB-06', 'no solar and no battery buys everything', () => {
+  const inp = inputs([{ pv: 6, load: 1, buy: 2, sell: 0.5 }]);
+  const rows = runStrategy(inp, cfgFor(), 'nothing').rows;
+  expect(rows[0].importKwh).toBe(1);
+  expect(rows[0].exportKwh).toBe(0);
+  expect(rows[0].cost).toBe(2);
+});
+
+test('LAB-17', 'the day is told in blocks of the same action with energy, cash and level', () => {
+  const inp = inputs([
+    { pv: 0, load: 0, buy: 0.2, sell: 0.1 },
+    { pv: 0, load: 0, buy: 0.2, sell: 0.1 },
+    { pv: 0, load: 0, buy: 1, sell: 0.5 },
+    { pv: 0, load: 1, buy: 3, sell: 2.5 },
+    { pv: 0, load: 1, buy: 3, sell: 2.5 },
+  ]);
+  const rows = runStrategy(inp, cfgFor(), 'smartGrid').rows;
+  const blocks = dayStory(rows, inp.hours);
+  expect(blocks.map((b) => b.action)).toEqual(['buy', 'idle', 'sell']);
+  expect(blocks[0].from).toBe(0);
+  expect(blocks[0].to).toBe(2);
+  expect(blocks[0].bought).toBe(10);
+  expect(blocks[0].boughtCash).toBeCloseTo(2, 6);
+  expect(blocks[2].sold).toBe(8);
+  expect(blocks[2].covered).toBe(2);
+  expect(blocks[2].endEnergy).toBe(0);
+});
+
+test('LAB-17', 'two runs are compared by what they bought, sold and saved', () => {
+  const inp = inputs([{ buy: 0.2, sell: 0.1 }, { buy: 3, sell: 2.5 }]);
+  const cfg = cfgFor();
+  const base = runStrategy(inp, cfg, 'smartSolar').rows;
+  const other = runStrategy(inp, cfg, 'smartGrid').rows;
+  const c = compareRuns(base, other, 0, 2);
+  expect(c.boughtMore).toBe(5);
+  expect(c.soldMore).toBe(5);
+  expect(c.other.avgBuy).toBeCloseTo(0.2, 6);
+  expect(c.other.avgSell).toBeCloseTo(2.5, 6);
+  expect(c.extra).toBeCloseTo(5 * 2.5 - 5 * 0.2, 6);
+});
+
+test('LAB-16', 'purchase prices add up per setup and give a simple payback', () => {
+  const inv = investment(defaultSettings());
+  expect(inv.kwp).toBe(15);
+  expect(inv.solarOnly).toBe(15 * 2000 + 20000 + 15000 + 5000);
+  expect(inv.withBattery).toBe(inv.solarOnly + 60 * 1500);
+  expect(paybackYears(160000, 20000)).toBe(8);
+  expect(paybackYears(1000, 0)).toBe(Infinity);
+  expect(perYear(100, 73)).toBe(500);
 });
