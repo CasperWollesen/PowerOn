@@ -25,7 +25,11 @@ weeks, months, years or any number of days with one click.
 - [x] Local: this week → previous week twice → next; this month → previous month;
       last year → next year (becomes this year to yesterday); buttons name the step
       and disable at yesterday; no console errors
-- [ ] Live site checked after deploy
+- [x] Live site checked after deploy: this week (+57 kr.) → previous week 19–25/10
+      (169 hours, the DST week, +33 kr.); this month (+167 kr.) → previous month
+      September (+282 kr.) → next month; the same numbers as locally, buttons wrap
+      at a narrow width, no console errors
+- [ ] Not checked on a real phone
 
 ## Result
 
