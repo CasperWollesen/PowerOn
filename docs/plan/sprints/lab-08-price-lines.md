@@ -31,4 +31,6 @@ sell later pays. They replace the day's averages from lab-07.
       console errors
 - [ ] No readable screenshot: the preview pane was too small; lines and band were
       checked through the page instead
-- [ ] Live site checked after deploy
+- [x] Live site checked after deploy: 21/10 (does not pay, needs 2,04) and 22/10
+      (pays, +0,64 a kWh) read the same as locally, two lines and the band each; no
+      console errors
