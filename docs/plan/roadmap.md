@@ -46,6 +46,7 @@ Work outside the app, in its own folder and spec, recorded as `lab-NN` sprints.
 | lab-03 | Days you can compare, a score, and a simpler page | [sprints/lab-03-day-score.md](sprints/lab-03-day-score.md) |
 | lab-04 | What kind of day it was, and less on screen | [sprints/lab-04-day-type.md](sprints/lab-04-day-type.md) |
 | lab-05 | Step through weeks and months | [sprints/lab-05-period-stepping.md](sprints/lab-05-period-stepping.md) |
+| lab-06 | Fold the parts of a day | [sprints/lab-06-day-folds.md](sprints/lab-06-day-folds.md) |
 
 ## Not scheduled
 

@@ -297,6 +297,11 @@ battery 56 %".
 - Today and smart software are shown side by side. Both start and end the day at
   the same battery level (LAB-07), followed by why they differ: extra kWh bought and
   sold, the average prices, the wear, and the net difference for the day.
+- In the existing-installation view the day comes in three folded parts, each with
+  a one-line summary carrying its numbers: what kind of day it was and where smart
+  software wins (LAB-19), the day in words side by side, and why they differ.
+  Whether each part is open is remembered while stepping from day to day; all three
+  start open.
 
 ### LAB-18 · Day score and the days worth a look
 **Status:** Implemented · **Priority:** Must · **Verify:** test
@@ -329,8 +334,9 @@ software win.
 - Where smart software wins: the hours in which it buys more from the grid, sells
   more, stores more solar (instead of selling it cheaply), or covers the house more
   than today, with kWh and average price.
-- Shown above each day, as a column in the best days and in the week and month
-  tables, and counted for the days scoring 50 or more.
+- Shown at the top of each day (the first folded part, LAB-17), as a column in the
+  best days and in the week and month tables, and counted for the days scoring 50
+  or more.
 
 ### LAB-20 · Choosing and stepping the period
 **Status:** Implemented · **Priority:** Should · **Verify:** test

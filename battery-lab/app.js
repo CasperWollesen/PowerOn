@@ -65,10 +65,13 @@ const state = {
   generation: 0,
 };
 
-/** Which big expanders are open: Setup closed, Result open, best days closed by default. */
+/** Which expanders are open: Setup closed, Result open, best days closed, the day's parts open by default. */
 function loadFolds() {
   const stored = load('lab.folds');
-  const folds = { setup: load('lab.setupOpen') === true, result: true, best: false };
+  const folds = {
+    setup: load('lab.setupOpen') === true, result: true, best: false,
+    dayFacts: true, dayStory: true, dayWhy: true,
+  };
   if (stored && typeof stored === 'object') {
     for (const k of Object.keys(folds)) if (typeof stored[k] === 'boolean') folds[k] = stored[k];
   }
@@ -909,16 +912,26 @@ function ownerStep(step) {
   const parts = `better timing ${signed(sum('timing'), 2)} · buying from the grid ${signed(sum('grid'), 2)}`;
   if (step.unit === 'day') {
     const e = list[0];
-    return `<div class="day-head">${scoreHtml(e.score, true)}<p class="headline">Smart software: <span class="${e.extra > 0.005 ? 'pos' : ''}">${signed(e.extra, 2)}</span> this day</p></div>
-      <p class="subtle">${parts} · ${signed(running)} since ${since}${actual}</p>
-      ${traitChips(traitOf(e.date))}
+    const weather = weatherText(traitOf(e.date));
+    const facts = part('dayFacts', 'What kind of day, and where smart software wins',
+      `${weather === '–' ? '' : `${esc(`${weather[0].toUpperCase()}${weather.slice(1)}`)} · `}${parts}`,
+      `${traitChips(traitOf(e.date))}
       ${winsHtml(gainSource(sim.results.manual, sim.results.daySmart, sim.hours, step.from, step.to))}
-      ${ownerDay(step)}`;
+      <p class="subtle">${signed(running)} since ${since}${actual}</p>`);
+    return `<div class="day-head">${scoreHtml(e.score, true)}<p class="headline">Smart software: <span class="${e.extra > 0.005 ? 'pos' : ''}">${signed(e.extra, 2)}</span> this day</p></div>
+      ${ownerDay(step, facts)}`;
   }
   const good = list.filter((e) => e.score >= 50).length;
   return `<p class="headline">Smart software: <span class="${sum('extra') > 0.005 ? 'pos' : ''}">${signed(sum('extra'), 2)}</span> ${unit}</p>
     <p class="subtle">${parts} · ${num(good, 0)} day${good === 1 ? '' : 's'} scoring 50+ · ${signed(running)} since ${since}${actual}</p>
     ${ownerDays(step, list)}`;
+}
+
+/** One folded part of a day: a title, a one-line summary, the details. */
+// @req LAB-17
+function part(name, title, sum, body) {
+  return `<details class="part"${foldAttr(name)}><summary><span class="title">${esc(title)}</span><span class="sum">${sum}</span></summary>
+    <div class="body">${body}</div></details>`;
 }
 
 function traitOf(date) {
@@ -1012,7 +1025,7 @@ function storyHtml(id, blocks, start, t, cfg) {
 }
 
 // @req LAB-17
-function whyHtml(cmp, start, cfg) {
+function whyPart(cmp, start, cfg) {
   const level = (e) => pct((100 * e) / cfg.capacity);
   const more = (v) => (v > 0 ? 'more' : 'less');
   const lines = [];
@@ -1028,11 +1041,23 @@ function whyHtml(cmp, start, cfg) {
   if (!lines.length) lines.push('Smart software found nothing better than today\'s way on this day.');
   if (Math.abs(cmp.wearMore) > 0.005) lines.push(`Wear: ${money(Math.abs(cmp.wearMore), 2)} ${cmp.wearMore > 0 ? 'more' : 'less'}, already counted.`);
   lines.push(`Both start the day at ${level(start.energy)} and end it at ${level(cmp.base.endEnergy)}, so the difference is pure cash.`);
-  return `<div class="why"><b>Why smart software earns ${money(Math.max(0, cmp.extra), 2)} more this day</b><ul>${lines.map((l) => `<li>${l}</li>`).join('')}</ul></div>`;
+  const sum = [];
+  if (Math.abs(cmp.boughtMore) > 0.05) sum.push(`${energy(Math.abs(cmp.boughtMore), 1)} ${more(cmp.boughtMore)} bought`);
+  if (Math.abs(cmp.soldMore) > 0.05) sum.push(`${energy(Math.abs(cmp.soldMore), 1)} ${more(cmp.soldMore)} sold`);
+  if (Math.abs(cmp.coveredMore) > 0.05) sum.push(`${energy(Math.abs(cmp.coveredMore), 1)} ${more(cmp.coveredMore)} to the house`);
+  if (Math.abs(cmp.wearMore) > 0.005) sum.push(`${money(Math.abs(cmp.wearMore), 2)} ${more(cmp.wearMore)} wear`);
+  return part('dayWhy', `Why smart software earns ${money(Math.max(0, cmp.extra), 2)} more this day`,
+    sum.length ? sum.join(' · ') : 'no difference',
+    `<div class="why"><ul>${lines.map((l) => `<li>${l}</li>`).join('')}</ul></div>`);
+}
+
+/** What a day nets for the household, incl. wear: positive when it earns. */
+function netText(t) {
+  return signed(-t.netWithWear, 2);
 }
 
 // @req LAB-10 LAB-11 LAB-17
-function ownerDay(step) {
+function ownerDay(step, facts) {
   const sim = state.sim;
   const cfg = sim.cfg;
   const { from, to } = step;
@@ -1069,12 +1094,15 @@ function ownerDay(step) {
   }).join('');
   const dayRows = hours.map((h, i) => ({ hour: h.hour, buy: today[i].priced ? today[i].buy : NaN, sell: today[i].sell, pv: today[i].pv, load: today[i].load }));
 
-  return `
-    <div class="stories">
+  const story = part('dayStory', 'The day in words, side by side',
+    `${esc(label('manual'))} nets ${netText(cmp.base)} · ${esc(label('daySmart'))} ${netText(cmp.other)} · incl. wear`,
+    `<div class="stories">
       ${storyHtml('manual', dayStory(today, hours), start, cmp.base, cfg)}
       ${storyHtml('daySmart', dayStory(smart, hours), start, cmp.other, cfg)}
-    </div>
-    ${whyHtml(cmp, start, cfg)}
+    </div>`);
+
+  return `
+    <div class="parts">${facts}${story}${whyPart(cmp, start, cfg)}</div>
     <p class="panel-title">Prices, kr./kWh</p>
     ${legend([{ label: 'Buy (full price)', color: 'var(--c-blue)', line: true }, { label: 'Sell', color: 'var(--c-violet)', line: true }])}
     ${sp.prices}

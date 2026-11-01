@@ -125,12 +125,12 @@ button.icon { padding: 6px 12px; min-width: 40px; }
 .segmented button[aria-pressed="true"] { background: var(--surface); box-shadow: 0 0 0 1px var(--border); font-weight: 600; }
 .presets button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
 
-/* Expanders: a summary line, the details on request. */
-details.group {
+/* Expanders: a summary line, the details on request – Setup groups and the parts of a day. */
+details.group, details.part {
   border-top: 1px solid var(--border);
 }
 details.group:first-of-type { border-top: 0; }
-details.group > summary {
+:is(details.group, details.part) > summary {
   list-style: none;
   cursor: pointer;
   padding: 11px 0;
@@ -139,8 +139,8 @@ details.group > summary {
   gap: 2px 8px;
   align-items: baseline;
 }
-details.group > summary::-webkit-details-marker { display: none; }
-details.group > summary::before {
+:is(details.group, details.part) > summary::-webkit-details-marker { display: none; }
+:is(details.group, details.part) > summary::before {
   content: "›";
   color: var(--muted);
   font-size: 1.2rem;
@@ -148,10 +148,13 @@ details.group > summary::before {
   transition: transform 0.15s;
   grid-row: span 2;
 }
-details.group[open] > summary::before { transform: rotate(90deg); }
-details.group > summary .title { font-weight: 600; }
-details.group > summary .sum { grid-column: 2; color: var(--muted); font-size: 0.88rem; }
+:is(details.group, details.part)[open] > summary::before { transform: rotate(90deg); }
+:is(details.group, details.part) > summary .title { font-weight: 600; }
+:is(details.group, details.part) > summary .sum { grid-column: 2; color: var(--muted); font-size: 0.88rem; }
 details.group > .body { padding: 0 0 14px 26px; }
+details.part > .body { padding: 0 0 12px; }
+.parts { border-bottom: 1px solid var(--border); margin: 6px 0 14px; }
+.parts .stories, .parts .why { margin-top: 0; }
 
 details.more > summary { cursor: pointer; color: var(--accent); margin: 8px 0; }
 
